@@ -1,0 +1,418 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Programming Technology Lab, 2006 - 2008
+ * Authors: PROG Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+
+deftype MandatoryFieldRemoval <: lobby.at.lang.types.Exception;
+def XMandatoryFieldRemoval := lobby.at.lang.exceptions.createException(MandatoryFieldRemoval);
+
+deftype DuplicateField <: lobby.at.lang.types.Exception;
+def XDuplicateField := lobby.at.lang.exceptions.createException(DuplicateField);
+
+deftype InvalidFieldType <: lobby.at.lang.types.Exception;
+def XInvalidFieldType := lobby.at.lang.exceptions.createException(InvalidFieldType);
+
+def ProximityModule := /.frameworks.urbiflock.proximity;
+
+/**
+ * Each field of a profile has an associated field type.
+ * The abstract field type can be seen as the abstract parent type
+ * of all field types that contains all common behavior.
+ * Specific behavior should be implemented and/or overridden by the
+ * child type.
+ */
+def AbstractFieldTypeObject := isolate: {
+	deftype ChildObjectResponsibility <: lobby.at.lang.types.Exception;
+	def XChildObjectResponsibility := lobby.at.lang.exceptions.createException(ChildObjectResponsibility);
+	
+	def isString() { false };
+	def isEnumeration() { false };
+	def isInteger() { false };
+	def isDate() { false };
+	def isPossibleValue(aValue) { false };
+	def getPossibleValues() { 
+		raise: XChildObjectResponsibility.new("getPossibleValues() not applicable for this type.") 
+	};
+	def name() { 
+		raise: XChildObjectResponsibility.new("name() should be overridden by children of AbstractFieldTypeObject.") 
+	};
+	def defaultValue() {
+		raise: XChildObjectResponsibility.new("defaultValue() should be overridden by children of AbstractFieldTypeObject.")
+	};
+	def fieldSize() {
+		raise: XChildObjectResponsibility.new("fieldSize() not applicable for this type.")
+	};
+	def comparators() {
+		raise: XChildObjectResponsibility.new("comparators() should be overridden by children of AbstractFieldTypeObject.")
+	};
+};
+
+def StringFieldTypeObject := extend: AbstractFieldTypeObject with: {
+	def fieldSize := 20;		// Used for the size of the input field in the GUI.
+	def isString() { true };
+	def isPossibleValue(aValue) { is: aValue taggedAs: /.at.lang.types.Text };
+	def name() { "Text" };
+	def defaultValue() { "" };
+	def getFieldSize() { fieldSize };
+	def setFieldSize(newSize) { fieldSize := newSize };
+	def comparators() { [ `== ] };
+};
+
+def EnumerationFieldTypeObject := extend: AbstractFieldTypeObject with: {
+	def possibleValues := [];
+	def isEnumeration() { true };
+	def getPossibleValues() { possibleValues };
+	def isPossibleValue(aValue) { possibleValues.contains(aValue); };
+	def init(thePossibleValues) {
+		possibleValues := thePossibleValues;
+	};
+	def name() { "Choice" };
+	def defaultValue() { possibleValues[1] };
+	def comparators() { [ `== ] };
+};
+
+def IntegerTypeFieldObject := extend: AbstractFieldTypeObject with: {
+	def fieldSize := 10;			// Used for the size of the input field in the GUI.
+	def lowerBound := nil;
+	def higherBound := nil;
+	def isInteger() { true };
+	def getFieldSize() { fieldSize };
+	def setFieldSize(newSize) { fieldSize := newSize };
+	def isPossibleValue(aValue) {
+		(is: aValue taggedAs: /.at.lang.types.Number).and: {
+			((nil == lowerBound).or: { aValue >= lowerBound }).and: {
+				(nil == higherBound).or: { aValue <= higherBound }
+			} 
+		}
+	};
+	def name() { "Integer" };
+	def defaultValue() { 
+		if: (is: lowerBound taggedAs: /.at.lang.types.Number) then: {  
+			lowerBound; 
+		} else: { 
+			0 
+		} 
+	};
+	def comparators() { [ `==, `<, `> ] };
+	def init(low, high) {
+		lowerBound := low;
+		higherBound := high;
+	};
+};
+
+def DateTypeFieldObject := extend: AbstractFieldTypeObject with: {
+	def lowerBound := nil;
+	def higherBound := nil;
+	def isDate() { true };
+	def isPossibleValue(aValue) {
+		//def calendarClass := jlobby.java.lang.Class.forName("java.util.Calendar");
+		//(calendarClass.isInstance(aValue)).and: {
+			//((nil == lowerBound).or: { aValue.after(lowerBound) }).and: {
+			//	(nil == higherBound).or: { aValue.before(higherBound) }
+		//	} 
+		//}
+		true;
+	};
+	def name() { "Date" };
+	def defaultValue() { 
+		def currentDate := jlobby.java.util.Calendar.getInstance(); 
+		if: (nil == lowerBound) then: { 
+			currentDate; 
+		} else: {
+			if: ((nil != higherBound).and: { currentDate.after(higherBound) }) then: {
+				higherBound
+			} else: {
+				currentDate
+			}
+		} 
+	};
+	def comparators() { [ `==, `<, `> ] };
+	def init(low, high) {
+		lowerBound := low;
+		higherBound := high;
+	};
+};
+
+/** 
+ * Each profile is extended from a special parent object that
+ * contains all mandatory fields for a profile. All fields
+ * are actually represented as slots in the object. This way, the MOP
+ * can be used to add/remove/lookup profile fields.
+ * This parent object also contains all info w.r.t. field types and
+ * field mappings.
+ * The real profile child object delegates the field type checking
+ * to this parent object.
+ */
+def makeProfileMandatoryFields() {
+	def theProfile := isolate: {
+		
+		def fieldTypeMap := jlobby.java.util.HashMap.new();
+		def matchingFields := /.at.collections.vector.Vector.new();
+		
+		def possibleTypes() { 
+			[
+			StringFieldTypeObject,
+			EnumerationFieldTypeObject,
+			IntegerTypeFieldObject,
+			DateTypeFieldObject
+			]
+		};
+				
+		// a unique username for a Flockr (type: string, mandatory)
+		def username := "";
+		// the Flockr's first name (type: string, mandatory)
+		def firstname := "";
+		// the Flockr's last name (type: string, mandatory)
+		def lastname := "";
+		// the Flockr's birthdate (type: java.util.Date, optional)
+		def birthdate := jlobby.java.util.Calendar.getInstance();
+		// the Flockr's sex (type: `male | `female, optional)
+		def sex := `Male;
+		
+		def getFieldType(fieldName) {
+			fieldTypeMap.get(fieldName);
+		};
+		
+		def getFieldTypeWithName(typeName) {
+			def found := (possibleTypes().filter: { |type| type.name() == typeName });
+			if: (found.length != 1) then: {
+				raise: XInvalidFieldType.new("Profile field type: " + typeName + " not found.");
+			};
+			found[1];
+		};
+		
+		def checkFieldTypeForValue(field, value) {
+			(getFieldType(field)).isPossibleValue(value);
+		};
+		
+		def addFieldTypeMapping(field, typeObject) {
+			fieldTypeMap.put(field, (/.at.support.symbiosis.cast: typeObject into: (jlobby.frameworks.urbiflock.ui.AbstractFieldType)));
+		};
+		
+		def removeFieldTypeMapping(field) {
+			fieldTypeMap.remove(field);
+		};
+		
+		def setFieldShouldMatch(fieldName) {
+			if: (!fieldShouldMatch(fieldName)) then: {
+				matchingFields.add(fieldName);
+			}
+		};
+		def setFieldShouldNotMatch(fieldName) {
+			if: (fieldShouldMatch(fieldName)) then: {
+				matchingFields.remove(fieldName);
+			}
+		};
+		def fieldShouldMatch(fieldName) {
+			matchingFields.contains(fieldName);
+		};
+		def getMatchingFields() {
+			matchingFields
+		};
+		
+		def makeStringFieldTypeObject() {
+			StringFieldTypeObject.new();
+		};
+		def makeEnumerationFieldTypeObject(possibleValues) {
+			EnumerationFieldTypeObject.new(possibleValues);
+		};
+		def makeIntegerTypeFieldObject(low, high) {
+			IntegerTypeFieldObject.new(low, high);
+		};
+		def makeDateTypeFieldObject(low, high) {
+			DateTypeFieldObject.new(low, high);
+		};
+	};
+	
+	// Add mandatory field-type mappings.
+	theProfile.addFieldTypeMapping(`username, StringFieldTypeObject.new());
+	theProfile.addFieldTypeMapping(`firstname, StringFieldTypeObject.new());
+	theProfile.addFieldTypeMapping(`lastname, StringFieldTypeObject.new());
+	theProfile.addFieldTypeMapping(`birthdate, DateTypeFieldObject.new(nil, nil));
+	theProfile.addFieldTypeMapping(`sex, EnumerationFieldTypeObject.new([ `Male, `Female ]));
+	
+	theProfile;
+};
+
+/** 
+ * The profile is a property list, but it's implemented as an isolate object.
+ * It extends the mandatory fields isolate object to be able to delegate all 
+ * common behavior to it. The non-mandatory fields are stored as slots in the 
+ * profile object.
+ */ 
+def makeProfile() {
+	def theProfile := extend: makeProfileMandatoryFields() with: {
+		
+		// A field is mandatory of it's a slot in the parent mandatory fields object.
+		def isMandatoryField(propName) {
+			(reflect: super).respondsTo(propName);
+		};
+		
+		// Extract all profile fields and put them in a hashmap.
+		def propertyHashMap() {
+			def theMap := jlobby.java.util.HashMap.new();
+			// Extract mandatory fields from the parent object.
+			((reflect: super).listFields()).each: { |field|
+				theMap.put(field.name(), field.readField());
+			};
+			// Extract custom profile fields.
+			((reflect: self).listFields()).each: { |field|
+				theMap.put(field.name(), field.readField());
+			};
+			// Don't consider these slots, they are not profile properties.
+			theMap.remove(`super);
+			theMap.remove(`fieldTypeMap);
+			theMap.remove(`matchingFields);
+			theMap;
+		};
+		
+		def getFieldNamesSet() {
+			propertyHashMap().keySet();
+		};
+		
+		/** 
+		 * Add a field to the profile. If the slot with name propName
+		 * already exists, there is already such a profile property.
+		 * If this is the case, raise a XDuplicateField exception.
+		 */
+		def addField(propName, propVal, propType) {
+			if: (reflect: self).respondsTo(propName) then: {
+				raise: XDuplicateField.new("Profile already has property: " + propName);
+			} else: {
+				(reflect: self).defineField(propName, propVal);
+				super.addFieldTypeMapping(propName, propType);
+			}
+		};
+		
+		/** 
+		 * Remove a field from the profile. If the property with name propName
+		 * is a mandatory field, raise a XMandatoryFieldRemoval exception.
+		 */
+		def removeField(propName) {
+			if: isMandatoryField(propName) then: {
+				raise: XMandatoryFieldRemoval.new("Cannot remove mandatory property from profile: " + propName);
+			} else: {
+				(reflect: self).removeSlot(propName);
+				super.removeFieldTypeMapping(propName);
+				super.setFieldShouldNotMatch(propName);
+			}
+		};
+		
+		/**
+		 * Change the value of an existing field in the profile.
+		 */
+		def setField(propName, propVal) {
+			// First check if it is a custom field (e.g. it's a slot in the profile object).
+			// If it is, write a new value in this slot of the profile object.
+			if: (nil != ((reflect: self).listFields().find: { |f| f.name() == propName })) then: {
+				((reflect: self).grabField(propName)).writeField(propVal);
+			// It it's not, write the new value in the slot of the mandatory fields
+			// parent object.
+			} else: {
+				((reflect: super).grabField(propName)).writeField(propVal);
+			}
+		};
+		
+		/**
+		 * Checks whether a property with name field has the value value.
+		 */
+		def fieldMatches(field, value) {
+			// First check if it is a custom field (e.g. it's a slot in the profile object).
+			// If it is, lookup the field in the profile object.
+			if: (nil != ((reflect: self).listFields().find: { |f| f.name() == field })) then: {
+				((reflect: self).grabField(field)).readField() == value;
+			// It it's not, lookup the field in the mandatory fields parent object.
+			} else: {
+				((reflect: super).grabField(field)).readField() == value;
+			}
+		};
+		
+	};
+	
+	theProfile;
+};
+
+
+def createProfileMatchingProximities(flockr, matchingProfile) {
+	def proximities := (matchingProfile.getMatchingFields()).map: { |fieldName|
+		ProximityModule.makeDoesProfileMatchProximity(flockr,
+			{ |profile|
+				(reflect: profile).invokeField(profile, fieldName) == 
+					 (reflect: matchingProfile).invokeField(matchingProfile, fieldName) })
+	};
+	if: (proximities.isEmpty()) then: {
+		proximities.add(ProximityModule.makeDoesProfileMatchProximity(flockr, { |profile| true }));
+	};
+	proximities;
+};
+
+def constructProfileMatchingProximityFromProximities(flockr, proximities) {
+	def result := proximities.at(1);
+	if: (proximities.length() > 1) then: {
+		(proximities.select(2, proximities.length())).each: { |proximity|
+			result := ProximityModule.makeAndProximity(result, proximity);
+		};
+	};
+	result;
+};
+
+// the module object of this file
+object: {
+	def makeProfile := &makeProfile;
+	def createProfileMatchingProximities := &createProfileMatchingProximities;
+	def constructProfileMatchingProximityFromProximities := &constructProfileMatchingProximityFromProximities;
+	
+	def ProfileTest := extend: /.at.unit.test.UnitTest.new("ProfileTest") with: {
+		
+		// unit tests go here
+		
+		def testAddAndRemoveProperty() {
+			def profile := makeProfile();
+			self.assertFalse((reflect: profile).respondsTo(`testProperty));
+			profile.addField(`testProperty, "testProperty", StringFieldTypeObject.new());
+			self.assertTrue((reflect: profile).respondsTo(`testProperty));
+			self.assertEquals(profile.testProperty, "testProperty");
+			profile.removeField(`testProperty);
+			self.assertFalse((reflect: profile).respondsTo(`testProperty));
+		};
+		
+		def testRemoveMandatoryProperty() {
+			def profile := makeProfile();
+			self.assert: MandatoryFieldRemoval raisedIn: { 
+				profile.removeField(`username);
+			};
+		};
+		
+		def testDuplicateProperty() {
+			def profile := makeProfile();
+			self.assert: DuplicateField raisedIn: { 
+				profile.addField(`username, "Zazawie", StringFieldTypeObject.new());
+			};
+		};
+		
+	};
+	
+};

@@ -1,0 +1,612 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Programming Technology Lab, 2006 - 2008
+ * Authors: PROG Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/**
+ * This file contains the implementation of a Flockr. A Flockr object represents
+ * a user in UrbiFlock. Applications that interact with users do so via this
+ * kind of objects. A Flockr object may represent the local user, or (if it is
+ * a far reference), it may represent a remote user.
+ *
+ * A flockr encapsulates a buddylist, which is a list of the profiles
+ * of the user's buddies. A flockr also has a list of flocks, which are
+ * (dynamic) groups of (proximate) Flockrs (other users), and a list of
+ * 'installed' applications.
+ *
+ * This file exports two operations:
+ *  - makeFlockr(profile : Profile) -> returns a Flockr object
+ *  - uidOf(flockr : farref<Flockr>) -> returns the uid of a remote flockr
+ */
+def Vector := /.at.collections.vector.Vector;
+import /.at.lang.futures;
+import /.frameworks.urbiflock.propertyMap;
+
+
+def ProximityModule := /.frameworks.urbiflock.proximity;
+def FlockModule := /.frameworks.urbiflock.flock;
+
+
+// type identifying remote Flockr Users
+deftype FlockrT;
+
+// given a Flockr near or far reference, returns its username (a string)
+def uidOf(flockr) {
+	/.at.support.util.getAnnotationOfType(flockr, FlockrT).username;
+};
+
+
+def makeFlockr(profile) {
+
+	def myProfile := profile;
+	def username := profile.username;
+		/** operation mayhem  **/
+	def myPropertyMap := makePropertyMap();
+	myPropertyMap.addField(`profile, profile);
+
+	def publication; // the pub object by which I am exported
+	def discSubscription; // the sub object by which I discover the rest of flockrs.
+	
+	// map UID -> Far ref to flockr
+	def uidFlockrMap := jlobby.java.util.HashMap.new();
+	
+	//def profileChangedListeners := Vector.new();
+	/** operation mayhem  **/
+	def propertiesChangedListeners := Vector.new();
+
+	def discoveryListeners := Vector.new();
+	def buddyListListeners := Vector.new();
+	def flocksListeners := Vector.new();
+	
+	def applications := Vector.new();
+	def flocks := Vector.new();
+	def proximities := Vector.new();
+	
+	def buddyList := /.frameworks.urbiflock.buddylist.makeBuddyList();
+	
+	// DEADCODE-prof
+	//def matchingProfile := /.frameworks.urbiflock.profile.makeProfile();
+	//def profileMatchesProximity := nil;
+	//def profileMatchingProximities := Vector.new();
+	
+	def hasOpenFlockEditorF := false;
+	
+	def notifyListeners: listeners with: message {
+		listeners.each: { |l| l <+ message };
+	};
+	
+	def notifyLocalListeners: listeners with: block {
+		listeners.each: { |l| block(l) };
+	};
+	
+	def localInterface := object: {
+	    
+	    def getTotam() { totam };
+	    def getUserPropertyMap() {myPropertyMap};
+	
+		/* l should understand:
+		     notifyProfileChanged(flockr : farref, newProfile : profile)
+		       invoked whenever a nearby flockr's profile has changed
+		*/
+		//def registerProfileChangedListener(l) { profileChangedListeners.add(l) };
+		//def removeProfileChangedListener(l) { profileChangedListeners.remove(l) };
+		
+		/** operation mayhem  **/
+		def registerPropertiesChangedListener(l) { propertiesChangedListeners.add(l) };
+		def removePropertiesChangedListener(l) { propertiesChangedListeners.remove(l) };
+		
+		
+		/* l should understand:
+		     notifyJoined(profile : profile)
+		       invoked whenever a new flockr has joined the ad hoc network
+		     notifyLeft(profile : profile)
+		       invoked whenever an existing flockr has left the ad hoc network
+		*/
+    	def registerDiscoveryListener(l) { discoveryListeners.add(l) };
+		def removeDiscoveryListener(l) { discoveryListeners.remove(l) };
+		/* l should understand:
+		     notifyBuddyAdded(flockr : flockr, buddyProfile : profile)
+		       invoked whenever a buddy was manually added to this flockr's buddy list
+		     notifyBuddyRemoved(flockr : flockr, buddyProfile: profile)
+		       invoked whenever a buddy was manually removed from this flockr's buddy list
+		*/
+		def registerBuddyListListener(l) { buddyListListeners.add(l) };
+		def removeBuddyListListener(l) { buddyListListeners.remove(l) };
+		
+		/* l should understand:
+		 	 notifyFlockAdded(flock: Flock)
+				invoked whenever a new flock is added.
+			notifyFlockRemoved(flock: Flock)
+				invoked whenever a flock is removed.
+		*/
+		def registerFlocksListener(l) { flocksListeners.add(l) };
+		def removeFlocksListener(l) { flocksListeners.remove(l) };
+		
+		/**
+		 * addApplication(app : Application) -> nil
+		 *  register an application in the list of applications of this Flockr
+		 */
+		def addApplication(app) { applications.add(app) };
+		
+		/**
+		 * getFlockrWithUid(uid : int) -> Flockr | nil
+		 *  return the Flockr object for the flockr with the given uid,
+		 *  or nil of the uid was not found
+		 */
+		def getFlockrWithUid(uid) {
+			uidFlockrMap.get(uid);
+		};		
+		/**
+		 * updateFlockrWithUid(flockr: farref<Flockr>, uid : int) -> nil
+		 *  update the flockr with the given uid
+		 */
+		/*DEADCODE-flockrWithId def updateFlockrWithUid(flockr, uid) {
+			uidFlockrMap.put(uid, flockr);
+		};*/
+		def getProfile() { myProfile };
+		// DEADCODE-prof def getMatchingProfile() { matchingProfile };
+		def getUsername(){ username };
+		
+		/**
+		 * Notifies all connected flockrs that this flockr's profile
+		 * has changed.
+		 */
+		def updateProfile() {
+			
+			notifyListeners: propertiesChangedListeners with: <-notifyChangedProperty(remoteInterface, `profile , myPropertyMap);
+			
+			def connectedFlockrsIterator := uidFlockrMap.values.iterator();
+			while: { connectedFlockrsIterator.hasNext() } do: {
+				/** operation mayhem  **/	
+				connectedFlockrsIterator.next()<-notifyChangedProperty(remoteInterface,`profile, myPropertyMap);
+			};
+		};
+		
+		
+		/** operation mayhem  **/
+		def makeValueEventSource(key) { 
+			object:{
+				// register in the property set
+				flockr.getPropertySet().add(key, self);
+				// called from application
+				def  update(newValue) { 
+					def connectedFlockrsIterator := uidFlockrMap.values.iterator();
+					while: { connectedFlockrsIterator.hasNext() } do: {
+						connectedFlockrsIterator.next()<-notifyChangedProperty(remoteInterface,key,myProfile);
+					};
+				};
+			};
+		};
+		
+		
+		/**
+		 * Adds a buddy's profile to this Flockr's buddy list
+		 */
+		def addBuddy(profile) { 
+			buddyList.addProfile(profile);
+			notifyListeners: buddyListListeners with: <-notifyBuddyAdded(profile);
+		};
+		
+		/**
+		 * Removes a buddy's profile from this Flockr's buddy list
+		 */
+		def removeBuddy(profile) { 
+			buddyList.removeProfile(profile.username);
+			notifyListeners: buddyListListeners with: <-notifyBuddyRemoved(profile); 
+		};
+		
+		/**
+		 * Ask whether or not a Flockr with a given uid is in this Flockr's buddy list
+		 */
+		def isBuddy(uid) {
+			buddyList.contains(uid);
+		};
+		
+		/**
+		 * Returns the profile of this Flockr's buddy with the given uid, or nil
+		 * if no such buddy exists
+		 */
+		def getBuddy(uid) {
+			buddyList.getProfile(uid);
+		};
+		
+		/**
+		 * Returns this Flockr's flocks (as a table)
+		 */
+		def getFlocks() { flocks.asTable };
+		
+		/**
+		 * Returns a Flock object whose name matches the given name,
+		 * or nil if no flock with that name exists.
+		 */
+		def getFlock(name) { 
+			def flockIndex := flocks.find: { |flock| name == flock.getName};
+			if: (nil != flockIndex) then: {
+				flocks.at(flockIndex);
+			}; // else return nil
+		};
+		def removeFlock(flock) {
+			flocks.remove(flock, { |f1,f2| f1.getName() == f2.getName() });
+			notifyListeners: flocksListeners with: <-notifyFlockRemoved(flock);
+			removePropertiesChangedListener(flock);
+		};
+		def addFlock(flock) { 
+			flocks.add(flock);
+			notifyListeners: flocksListeners with: <-notifyFlockAdded(flock);
+		};
+		def hasOpenFlockEditor() {
+			hasOpenFlockEditorF
+		};
+		def setHasOpenFlockEditor(b) {
+			hasOpenFlockEditorF := b;
+		};
+		def getProximities() { proximities.asTable };
+		def addProximity(proximity) { proximities.add(proximity) };
+		def removeProximity(proximity) { proximities.remove(proximity) };
+		
+	    /* DEADCODE-prof. Remove when GUI DoesProfileMatchProximityEditor is cleared.
+		 def updateMatchingProfile(newProfile) {
+			// Clean up old individual profile field matching proximities
+			profileMatchingProximities.each: { |proximity| removeProfileChangedListener(proximity) };
+			proximities.remove(profileMatchesProximity);
+			matchingProfile := newProfile;
+			// Create new individual profile field matching proximities
+			profileMatchingProximities := /.frameworks.urbiflock.profile.createProfileMatchingProximities(localInterface, matchingProfile);
+			profileMatchesProximity := /.frameworks.urbiflock.profile.constructProfileMatchingProximityFromProximities(localInterface, profileMatchingProximities);
+			proximities.add(profileMatchesProximity);
+			matchingProfilesFlock.setProximity(profileMatchesProximity);
+			def connectedFlockrsIterator := uidFlockrMap.values.iterator();
+			// For each connected flockr, signal a profileChanged event to all the 
+			// individual profile field matching proximities.
+			// This way, the global profile matcher proximity is recomputed and the flock
+			// is updated.
+			while: { connectedFlockrsIterator.hasNext() } do: {
+				def flockrRef := connectedFlockrsIterator.next();
+				when: flockrRef<-getProfile()@Due(seconds(10)) becomes: { |newProfile|
+					profileMatchingProximities.each: { |proximity| 
+						proximity<-notifyProfileChanged(flockrRef, newProfile);
+					}
+				} catch: TimeoutException using: { |e|
+				};
+			}
+		};*/
+		
+		// takes a flockr offline: 
+		// stops a flockr from being exported to the network
+		// + from discovering other flockrs in the network
+		// + removes it from the table of exported objects
+		def goOffline() { 
+		  (publication != nil).ifTrue: { publication.cancel()}; 
+		  (discSubscription != nil).ifTrue: { discSubscription.cancel()};  
+		  try: { 
+	        takeOffline: self.remoteInterface;
+	      } catch: /.at.lang.types.IllegalOperation using: { |e| /*flockr used only locally*/ };
+	      nil;
+		};
+		
+		/*
+		 * The flockr's remote interface. These are the only methods that can be
+		 * invoked by other flockrs on this Flockr.
+		 */
+		def remoteInterface := object: {
+			//def getProfile() { profile };
+			/** operation mayhem  **/
+			def getProperties() { myPropertyMap };
+		     
+		    def getTotam() {totam.getRemoteInterface()};	
+			/** operation mayhem  **/
+			//def profileChanged(flockr, newProfile) {
+			//	notifyListeners: profileChangedListeners with: <-notifyProfileChanged(flockr, newProfile);
+			//};
+			
+			/** operation mayhem  **/
+			def notifyChangedProperty(flockr, key, newPropertyMap) {
+				notifyListeners: propertiesChangedListeners with: <-notifyChangedProperty(flockr,key,newPropertyMap);
+				
+				/*if: (key == `profile) then: {
+					system.println("it was a profile change !!!");
+					notifyListeners: profileChangedListeners with: <-notifyProfileChanged(flockr, newPropertyMap.profile);
+				}else: {
+					notifyListeners: propertiesChangedListeners with: <-notifyChangedProperty(flockr,key,newPropertyMap);
+				};*/
+			};
+			
+		} taggedAs: [ extend: FlockrT with: { |username| }];
+		
+		def openApplicationLauncher() { 
+			jlobby.frameworks.urbiflock.ui.ApplicationLauncher.new(applications.asTable()) 
+		};
+		
+		def openFlockEditorOnNewFlock() {
+			jlobby.frameworks.urbiflock.ui.FlockEditor.new(/.frameworks.urbiflock.flock.makeFlock(
+					"new flock", 
+					/.frameworks.urbiflock.proximity.makeDoesProfileMatchProximity(localInterface, { |p| true }),
+					localInterface),
+				localInterface);
+		};
+		
+		// Create a new flock using:
+		// flockName: the name of the flock.
+		// fieldMatchersVector: a vector containing a representation of the profile properties from the GUI.
+		// shouldBeFriend: should the flockr be in the buddy list?
+		// shouldBeNearby: should the flockr be nearby?
+		def createFlockFromFieldMatchers(flockName, fieldMatchersVector, shouldBeFriend, shouldBeNearby) {
+			// The initial proximity matches with every flockr.
+			def theChainedProximity := /.frameworks.urbiflock.proximity.makeDoesProfileMatchProximity(localInterface, { |p| true });
+			def iterator := fieldMatchersVector.iterator();
+			// We keep the simple proximities to be able to notify them later on.
+			def simpleProximities := Vector.new();
+			simpleProximities.add(theChainedProximity);
+			// A field matcher is a vector which contains a representation of the
+			// profile properties that the user filled out in the GUI.
+			// Here we iterate over each field matcher and create the corresponding proximity.
+			while: { iterator.hasNext() } do: {
+				def fieldMatcher := iterator.next();
+				// The name of the profile field.
+				def fieldName := fieldMatcher.get(0);
+				// The type of the profile field.
+				def fieldType := fieldMatcher.get(1);
+				// The comparator (e.g. ==, <, >...).
+				def comparatorSymbol := fieldMatcher.get(2);
+				// The actual value of the profile field.
+				def fieldValue := fieldMatcher.get(3);
+				// Make the proximity for this field:
+				def proximity := /.frameworks.urbiflock.proximity.makeDoesProfileMatchProximity(
+					localInterface, 
+					{ |profile| 
+						// If the flockr's profile doesn't have the field, do not match.
+						if: (reflect: profile).respondsTo(fieldName) then: {
+							// If it does, lookup the value and compare it with our value
+							// using the comparator operator.
+							def value := (reflect: profile).invokeField(profile, fieldName);
+							(reflect: value).invoke(
+								value, 
+								object: { 
+									def selector() { comparatorSymbol };
+									def arguments() { [ fieldValue ] }; 
+									});
+						} else: {
+							false;
+						};
+					});
+				// We keep the simple proximities to be able to notify them later on.
+				simpleProximities.add(proximity);
+				// The resulting global proximity is a chained AND-proximity of all simple proximities.
+				theChainedProximity := /.frameworks.urbiflock.proximity.makeAndProximity(theChainedProximity, proximity);	
+			};
+			// Should the flockr be a friend?
+			def isFriendProximity := nil;
+			// Should the flockr be nearby?
+			def isNearbyProximity := nil;
+			// If so, add the corresponding proximity.
+			if: shouldBeFriend then: {
+				isFriendProximity := /.frameworks.urbiflock.proximity.makeIsFriendProximity(localInterface);
+				theChainedProximity := /.frameworks.urbiflock.proximity.makeAndProximity(theChainedProximity, isFriendProximity);
+			};
+			// If so, add the corresponding proximity.
+			if: shouldBeNearby then: {
+				isNearbyProximity := /.frameworks.urbiflock.proximity.makeIsNearbyProximity(localInterface);
+				theChainedProximity := /.frameworks.urbiflock.proximity.makeAndProximity(theChainedProximity, isNearbyProximity);
+			};
+			// Here the global proximity is ready, but the sub-proximities still 
+			// have to be initialized (by notifying them).
+			proximities.add(theChainedProximity);
+			addFlock(/.frameworks.urbiflock.flock.makeFlock(flockName, theChainedProximity, localInterface));
+			
+			// Notify the isFriendProximity with all the existing buddies.
+			if: (nil != isFriendProximity) then: {
+				buddyList.listProfiles.each: { |profile|
+					isFriendProximity<-notifyBuddyAdded(profile);
+				};
+			};
+			
+			
+			// Notify the profile proximities and the isNearby proximity by iterating over all connected flockrs.
+			def connectedFlockrsIterator := uidFlockrMap.values.iterator();
+			while: { connectedFlockrsIterator.hasNext() } do: {
+				def flockrRef := connectedFlockrsIterator.next();
+				when: flockrRef<-getProperties()@Due(seconds(10)) becomes: { |newProperties|
+					if: (nil != isNearbyProximity) then: {
+						isNearbyProximity<-notifyJoined( newProperties.profile );
+					};
+					simpleProximities.each: { |proximity| 
+						proximity<-notifyChangedProperty(flockrRef, `* ,newProperties);
+					};
+				} catch: TimeoutException using: { |e|
+				};
+			}		
+		};
+	};
+	
+    def totam := /.frameworks.urbiflock.urbiflockTotam.makeTotam(localInterface);
+		
+	// BuddyList is interested in Profile changes (update cached profiles)
+	localInterface.registerPropertiesChangedListener(buddyList);
+	
+	// Adding predefined flocks
+	def isFriendProximity := ProximityModule.makeIsFriendProximity(localInterface);
+	proximities.add(isFriendProximity);
+	def FriendsFlock := FlockModule.makeFlock("FriendsFlock", isFriendProximity, localInterface);
+	FriendsFlock.makeDefaultFlock();
+	flocks.add(FriendsFlock);
+	
+	def isNearbyProximity := ProximityModule.makeIsNearbyProximity(localInterface);
+	proximities.add(isNearbyProximity);
+	def NearbyFlock := FlockModule.makeFlock("NearbyFlock", isNearbyProximity, localInterface);
+	NearbyFlock.makeDefaultFlock();
+	flocks.add(NearbyFlock);
+	
+
+	/.frameworks.urbiflock.application.makeFrameworkApplications(localInterface).each: { |application|
+		applications.add(application);
+	};
+
+	publication := export: localInterface.remoteInterface as: FlockrT;
+	
+	// whenever a new Flockr is discovered:
+	// 1) all discovery listeners get a notifyJoined event
+	// 2) all profile changed listeners get a notifyProfileChanged event
+	discSubscription := whenever: FlockrT discovered: { |flockr|
+//	system.println(" flockr " + username + " discovered " + uidOf(flockr));
+	
+			when: flockr<-getProperties()@Due(10.seconds) becomes: { |newProperties|
+      		// keep track of the flockr far reference via its UID
+			uidFlockrMap.put(uidOf(flockr), flockr);
+			
+			notifyListeners: discoveryListeners with: <-notifyJoined(newProperties.profile);
+			
+			notifyListeners: propertiesChangedListeners with: <-notifyChangedProperty(flockr, `* , newProperties);
+			
+			/* FIXME: What if a flockr disconnects, then reconnects and the addFlockr event
+			   is signalled before the removeFlockr event. Can this ever happen?
+			*/
+			when: flockr disconnected: {
+				uidFlockrMap.remove(uidOf(flockr));
+				// Note: the 'newProfile' profile may be outdated by now, but it only serves
+				// to remove all profiles with the same username from the RETE network
+				notifyListeners: discoveryListeners with: <-notifyLeft(newProperties.profile);
+			};
+			
+		} catch: TimeoutException using: { |e|
+			// ignore this Flockr
+		};
+		
+	};
+	
+	localInterface;
+	
+};
+
+// the module object of this file
+object: {
+	
+	// makeFlockr(profile) -> returns a Flockr object
+	def makeFlockr := &makeFlockr;
+	def uidOf := &uidOf;
+	
+	// run these unit tests sequentially
+	def FlockrTest := extend: /.at.unit.test.UnitTest.new("FlockrTest", false) with: {
+		
+		def flockr1;
+		def actorHostingFlockr2;
+		
+		def setUp() {
+			// create two new flockrs, one in this actor, the other in a new actor
+			def profile1 := /.frameworks.urbiflock.profile.makeProfile();
+			profile1.username := "flockr1";
+		  flockr1 := makeFlockr(profile1);
+		
+		  actorHostingFlockr2 := actor: {
+				import /.frameworks.urbiflock.flockr;
+				def profile2 := /.frameworks.urbiflock.profile.makeProfile();
+				profile2.username := "flockr2";
+				profile2.firstname := "Flockr 2 first name";
+			  
+			  def flockr2 := makeFlockr(profile2);
+			  
+			  def getFlock() { flockr2.remoteInterface };
+			  
+			  def setFlockr2Firstname(name) { 
+				  profile2.firstname := name;
+				  flockr2.updateProfile();
+			  }
+			  ;
+			  def goOffline() { flockr2.goOffline(); `ok };
+		  }
+		};
+		
+		def tearDown() {
+			// clean up the flockrs created for each test
+			flockr1.goOffline();
+			actorHostingFlockr2<-goOffline()@FutureMessage;
+			// because we return a future, tearDown will wait
+			// until the second flock has been taken offline before
+			// starting the next test
+		};
+		
+		def testAsyncUidOf() {			
+			when: actorHostingFlockr2<-getFlock()@FutureMessage becomes: { |remoteFlockr|
+				self.assertEquals("flockr2", /.frameworks.urbiflock.flockr.uidOf(remoteFlockr), "uidOf does not work");
+			};
+		};
+		
+		// test whether two flockrs can discover one another
+		def testAsyncProfileExchange() {
+			def [fut,res] := makeFuture(seconds(10));
+			
+			flockr1.registerPropertiesChangedListener(object: {
+				def notifyChangedProperty(flockr, key ,newProperties) {
+					res.resolve(newProperties.profile.username);
+				};
+			});
+
+			when: fut becomes: { |uname|
+				self.assertEquals("flockr2", uname);
+			};
+			
+		};
+		
+		def testAsyncUpdateProfileInBuddyList() {
+			def profile2 := /.frameworks.urbiflock.profile.makeProfile();
+			profile2.username := "flockr2";
+			profile2.firstname := "Jef";
+			flockr1.addBuddy(profile2);
+			self.assertEquals((flockr1.getBuddy("flockr2")).firstname, "Jef");
+						
+			// We wait 5 seconds for the event to be delivered and the profile to be updated.
+			// If this test fails, maybe the update did not happen within 5 seconds.			
+			/.at.support.timer.when: seconds(5) elapsedWithFuture: {
+				self.assertEquals((flockr1.getBuddy("flockr2")).firstname, "Flockr 2 first name");
+			};
+		};
+		
+		
+		def testAsyncUpdateProfile() {
+			def [fut,res] := makeFuture(seconds(9));
+		
+			/.at.support.timer.when: seconds(7) elapsedWithFuture: {
+				actorHostingFlockr2<-setFlockr2Firstname("bleh");				
+			};
+			
+			/.at.support.timer.when: seconds(5) elapsedWithFuture: {
+			
+			flockr1.registerPropertiesChangedListener(object: {
+				def notifyChangedProperty(flockr, key ,newProperties) {
+					system.println(newProperties.profile.firstname);
+					res.resolve(newProperties.profile.firstname);
+				};
+			});
+			
+			};
+			
+			when: fut becomes: { |uname|
+				self.assertEquals("bleh", uname);
+			};
+			
+		};
+		
+	};
+	
+};

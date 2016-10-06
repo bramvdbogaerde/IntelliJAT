@@ -1,0 +1,2 @@
+// use this as the start-up script of the demo-server.at file
+network.online();

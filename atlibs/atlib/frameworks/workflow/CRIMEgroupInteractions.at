@@ -1,0 +1,447 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Software Languages Lab, 2006 - 2011
+ * Authors: Soft Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * @author eline.philips
+ */
+ 
+
+def initModule := lobby.frameworks.workflow.WFinit;
+def environmentModule := lobby.frameworks.workflow.environment;
+def intensionalModule := lobby.frameworks.workflow.intensional;
+def crimeModule := lobby.bridges.crime.CrimeConnection;
+def standardPatternsModule := lobby.frameworks.workflow.standardPatterns;
+def compensatingActionsModule := lobby.frameworks.workflow.compensatingActions;
+def failuresModule := lobby.frameworks.workflow.failures;
+def groupPatternsModule := lobby.frameworks.workflow.groupPatterns;
+import crimeModule;
+import initModule;
+import environmentModule;
+import intensionalModule;
+import standardPatternsModule;
+import compensatingActionsModule;
+import failuresModule;
+import groupPatternsModule;
+import /.at.lang.values;
+import /.at.lang.futures;
+enableFutures(false);
+
+deftype Service;
+
+
+//TODO: ugly implementation, use something as volatile sets (experimental.lang)
+def ServiceDatabase := object: {
+    def services := [];
+    def servicesMapping := [];
+    def observers := [];
+    
+     def addObserver(group, env) {
+    	observers := observers + [[group, env]];
+    };
+    
+    def cancelObserver(group) {
+    	observers := observers.filter: { |g| ! (g[1] == group) };
+    };
+        
+    def findAll(tag) {
+        def result := [];
+        services.each: { |s| if: (is: s taggedAs: tag) then: {result := result + [s];}; };
+        result;
+    };
+    
+    def find(id) {
+    	def idx := servicesMapping.find: { |pair| pair[1] == id }; 
+    	if: (idx == nil) then: { nil; } else: { servicesMapping[idx][2]; };
+    };
+    
+    def init() {
+        whenever: Service discovered: { |service| 
+        	if: (servicesMapping.map: { |pair| pair[2]; }).contains(service) then: {
+        		system.println("Service already discovered");
+        	} else: {  
+            	system.println("service discovered ");
+            	when: service<-export(factId)@FutureMessage becomes: { |result|
+            		system.println("RESULT VAN EXPORT " + result);
+            		result.each: { |fact| myCrime.insertTuple(fact); };
+            	};
+            	//myCrime.insertTuple(makeTuple("FarRef", id, service));
+				servicesMapping := servicesMapping + [[factId, service]];
+            	factId := factId + 1; 
+            	services := services + [service];
+            	observers.each: { |groupEnv| def group := grpupEnv[1]; group.serviceDiscovered(service, groupEnv[2]); };
+            	whenever: service disconnected: {
+                	system.println("Service disconnected");
+                	observers.each: { |groupEnv| def group := groupEnv[1]; group.serviceDisconnected(service, groupEnv[2]); };
+                	// TODO myCrime retract
+                	def idx := services.find: { |s| s == service; };
+                	services := services.select(1, idx) + services.select(idx + 1, services.length);
+            	};
+            };
+            whenever: service reconnected: {
+            	system.println("service reconnected");
+            	observers.each: { |groupEnv| def group := groupEnv[1]; group.serviceReconnected(service, groupEnv[2]); };
+            };
+        };
+    };
+};
+
+
+
+def Group() {
+	def obj := extend: WorkflowComponent with: {
+		def passed := true;
+		def varName;
+	
+		// Check if a compensating action is allowed.
+		// When a group has already stopped execution (the future of the terminating join has been resolved),
+		// compensating actions that are triggered by participants who have not finished their execution 
+		// (e.g. the join has a condition which is not percentage(100))
+		// may not influence the group or activities outside the group pattern.
+		// Hence, we could opt to not allow any compensations when a group has finished execution.
+		// Instead we have chosen to allow the compensating actions Retry, Rediscover and Wait since they only influence 
+		// an activity in the group for one single participant.
+		def compensationAllowed(failureDescription, env) {
+			def group := env.group;
+			def failure := failureDescription.failureEvent;
+			if: ! group.passed then: {
+				true;
+			} else: {
+				def compensation := failureDescription.compensation;
+				if: ( ( (is: compensation taggedAs: RetryType).or: { is: compensation taggedAs: RediscoverType } ).or: { is: compensation taggedAs: WaitType } ) then: {
+					true;
+				} else: {
+					false;
+				};
+			};
+		};
+        
+        def start(env) { `ok; };
+        def cancel(env) { };
+        def drop(env) { };
+        def replace(cmp, env) { `ok; };
+        def decrease() { };
+    	def getEnvironmentId(instanceId) { nil; };
+    	def getDisconnection(env) { env.disconnection; };
+    	def getTimeout(env) { env.timeout; };
+    	def getException(env) { env.exception; };
+    	def getNotFound(env) { env.notFound; };
+    	def addDisconnection(env, service) { };
+    	def addTimeout(env, service) { };
+    	def addNotFound(env) { };
+    	def addException(env, service) { };
+    	def addParticipantDisconnection(env, service) { };
+    	def addParticipantTimeout(env, service) { };
+    	def addParticipantNotFound(env) { };
+    	def addParticipantException(env, service) { };
+    	def getDisconnections() { 0; };
+    	def getTimeouts() { 0; };
+    	def getNoutFounds() { 0; };
+    	def getExceptions() { 0; };
+    	def getParticipantDisconnections() { 0; };
+    	def getParticipantTimeouts() { 0; };
+    	def getParticipantNoutFounds() { 0; };
+    	def getParticipantExceptions() { 0; };
+    } taggedAs: [GroupPattern];
+    obj;
+};
+
+
+
+/**
+* Snapshot group.
+* @param description: description of the participants.
+*					  can be either an AMbientTalk type tag or a CRIME rule
+* @param varName: symbol representing the variable name (is stored in the environment during the execution of the group)
+* @param component: the component that must be executed for all participants of the group
+* @param join: (optional) how and when all resulting environments can be merged
+*              default when all participants have returned a resulting environment (100%) the environments are joined (values of identicale keys are merged in a table)
+*/
+def SnapshotGroup(_description, _varName, _component, _condition := percentage(100)) { 
+    def obj := extend: Group with: {
+    	def passed := false;
+    	def join := Join(_condition);
+        def description := _description;
+        def varName := _varName;
+        def component := Sequence(_component, join);
+        def started := false;
+        def numberOfParticipants := 0;
+        def activeParticipants := 0;
+        def environmentIds := [];
+        def resolvers := [];
+        def failures := FailuresEnvironment();
+        
+        def start(env) {
+        	def previousGroup := env.group;
+        	env.group := self;
+            def [result, resolver] := makeFuture();
+            super^informObservers(env);
+            execute(env, resolver, previousGroup);
+            result;
+        };
+        
+        def cancel(env) {
+        	component.cancel(env);
+        };
+        
+        def drop(env) {
+        	decrease();
+        	if: (numberOfParticipants == 0) then: {
+        		cancel(env);
+        	};
+        };
+        
+        def decrease() {
+        	activeParticipants := activeParticipants - 1;
+        	if: activeParticipants == 0 then: {
+        		cancel(env);
+        	};
+        };
+        
+        def replace(cmp, env) {
+        	def [result, resolver];
+        	futures.each: { |p| if: ( p[1] == env.getId()) then: { [result, resolver] := p[2]; }; };
+        	when: cmp.start(env) becomes: { |nEnv|
+        		resolver.resolve(nEnv);
+        	};
+        	result;
+        };
+    
+        def execute(env, resolver, previousGroup) {
+        	def ServiceDB := env.serviceDB;
+            def services := [];
+            if: (is: description taggedAs: Rule) then: {
+            	description.findall( { |varMaps| varMaps.each: { |v| def s := ServiceDB.find(v.get(`id));
+            											             services := services + [s]; };
+            							 numberOfParticipants := services.length;  
+            							 activeParticipants := numberOfParticipants;
+            							 executeServices(env, resolver, services, previousGroup) ;});
+            } else: {
+            	services := ServiceDB.findAll(description);
+            	numberOfParticipants := services.length; 
+            	activeParticipants := numberOfParticipants;
+            	executeServices(env, resolver, services, previousGroup);
+           	};
+		};
+		
+		def executeServices(env, resolver, services, previousGroup) {
+            def envs := [];
+            services.each: { |s| def clonedEnv := SystemEnvironment.new(env); 
+                                 clonedEnv.insert(varName, s); 
+                                 environmentIds := environmentIds + [[clonedEnv.id, env.id]];
+                                 resolvers := resolvers + [[env.id, resolver]]; 
+                                 when: component.start(clonedEnv) becomes: { |nEnv|
+                                 	passed := true;
+                                 	nEnv.group := previousGroup;
+                                 	nEnv.delete(varName); 
+                                 	resolver.resolve(nEnv); };
+                           }; 
+    	};
+    	
+    	def getEnvironmentId(instanceId) {
+    		def idx := environmentIds.find: { |e| e[1] == instanceId; };
+    		if: ! (idx == nil) then: {
+    			environmentIds[idx][2];
+    		} else: {
+    			nil;
+    		};
+    	};
+    	
+    	def getDisconnection(env) { env.participantDisconnection; };
+    	def getTimeout(env) { env.participantTimeout; };
+    	def getException(env) { env.participantException; };
+    	def getNotFound(env) { env.participantNotFound; };
+    	def addDisconnection(env, service) { failures.addDisconnection(env, service); };
+    	def addTimeout(env, service) { failures.addTimeout(env, service); };
+    	def addNotFound(env) { failures.addNotFound(env); };
+    	def addException(env, service) { failures.addException(env, service); };
+    	def addParticipantDisconnection(env, service) { failures.addParticipantDisconnection(env, service); };
+    	def addParticipantTimeout(env, service) { failures.addParticipantTimeout(env, service); };
+    	def addParticipantNotFound(env) { failures.addParticipantNotFound(env); };
+    	def addParticipantException(env, service) { failures.addParticipantException(env, service); };
+    	def getDisconnections() { failures.disconnectionIds.length; };
+    	def getTimeouts() { failures.timeoutIds.length; };
+    	def getNoutFounds() { failurs.notFoundIds.length; };
+    	def getExceptions() { failures.exceptionIds.length; };
+    	def getParticipantDisconnections() { failures.participantDisconnectionIds.length; };
+    	def getParticipantTimeouts() { failures.participantTimeoutIds.length; };
+    	def getParticipantNoutFounds() { failurs.participantNotFoundIds.length; };
+    	def getParticipantExceptions() { failures.participantExceptionIds.length; };
+    } taggedAs: [GroupPattern];
+    obj;
+};
+
+
+
+/**
+* Living group.
+* @param description: description of the participants.
+*					  can be either an AMbientTalk type tag or a CRIME rule
+* @param varName: symbol representing the variable name (is stored in the environment during the execution of the group)
+* @param component: the component that must be executed for all participants of the group
+* @param join: (optional) how and when all resulting environments can be merged
+*              default when all participants have returned a resulting environment (100%) the environments are joined (values of identicale keys are merged in a table)
+*/
+def LivingGroup(_description, _varName, _component, _condition := percentage(100)) { 
+    def obj := extend: Group with: {
+    	def passed := false;
+    	def join := Join(_condition);
+        def description := _description;
+        def varName := _varName;
+        def component := Sequence(_component, join);
+        def started := false;
+        def numberOfParticipants := 0;
+        def activeParticipants := 0;
+        def environmentIds := [];
+        def resolvers := [];
+        def failures := FailuresEnvironment();
+        
+        def start(env) {
+        	def previousGroup := env.group;
+        	env.group := self;
+        	// add observer to the group (env passed since group can be started multiple times (multiple instance pattern warps group)).
+        	env.serviceDb.addObserver(self, env);
+            def [result, resolver] := makeFuture();
+            super^informObservers(env);
+            execute(env, resolver, previousGroup);
+            result;
+        };
+        
+        def cancel(env) {
+        	component.cancel(env);
+        };
+        
+        def drop(env) {
+        	decrease();
+        	if: (numberOfParticipants == 0) then: {
+        		cancel(env);
+        	};
+        };
+        
+        def decrease() {
+        	activeParticipants := activeParticipants - 1;
+        	if: activeParticipants == 0 then: {
+        		cancel(env);
+        	};
+        };
+        
+        def replace(cmp, env) {
+        	def [result, resolver];
+        	futures.each: { |p| if: ( p[1] == env.getId()) then: { [result, resolver] := p[2]; }; };
+        	when: cmp.start(env) becomes: { |nEnv|
+        		nEnv.serviceDB.cancelObserver(self);
+        		resolver.resolve(nEnv);
+        	};
+        	result;
+        };
+    
+        def execute(env, resolver, previousGroup) {
+        	def ServiceDB := env.serviceDB;
+            def services := [];
+            if: (is: description taggedAs: Rule) then: {
+            	description.findall( { |varMaps| varMaps.each: { |v| def s := ServiceDB.find(v.get(`id));
+            											             services := services + [s]; };
+            							 numberOfParticipants := services.length;  
+            							 activeParticipants := numberOfParticipants;
+            							 executeServices(env, resolver, services, previousGroup) ;});
+            } else: {
+            	services := ServiceDB.findAll(description);
+            	numberOfParticipants := services.length; 
+            	activeParticipants := numberOfParticipants;
+            	executeServices(env, resolver, services, previousGroup);
+           	};
+		};
+		
+		def executeServices(env, resolver, services, previousGroup) {
+            def envs := [];
+            services.each: { |s| def clonedEnv := SystemEnvironment.new(env); 
+                                 clonedEnv.insert(varName, s); 
+                                 environmentIds := environmentIds + [[clonedEnv.id, env.id]];
+                                 resolvers := resolvers + [[env.id, resolver]]; 
+                                 when: component.start(clonedEnv) becomes: { |nEnv|
+                                 	passed := true;
+                                 	nEnv.group := previousGroup;
+                                 	nEnv.delete(varName); 
+                                 	nEnv.serviceDB.cancelObserver(self);
+                                 	resolver.resolve(nEnv); };
+                           }; 
+    	};
+    	
+    	def serviceDiscovered(service, env) {
+    		def failureDescription := env.getParticipantConnected();
+    		if: ! (failureDescription == nil) then: {
+    			def compensation := failureDescription.compensation;
+    			compensation.start(env, activity, failureDescription);
+    		};
+    	};
+    	
+    	def serviceDisconnected(service, env) {
+    		system.println("Participant disconnected");
+    	};
+    	
+    	def serviceReconnected(service, env) {	
+    		system.println("Participant reconnected");
+    	};
+    	
+    	def getEnvironmentId(instanceId) {
+    		def idx := environmentIds.find: { |e| e[1] == instanceId; };
+    		if: ! (idx == nil) then: {
+    			environmentIds[idx][2];
+    		} else: {
+    			nil;
+    		};
+    	};
+    	
+    	def getDisconnection(env) { env.participantDisconnection; };
+    	def getTimeout(env) { env.participantTimeout; };
+    	def getException(env) { env.participantException; };
+    	def getNotFound(env) { env.participantNotFound; };
+    	def addDisconnection(env, service) { failures.addDisconnection(env, service); };
+    	def addTimeout(env, service) { failures.addTimeout(env, service); };
+    	def addNotFound(env) { failures.addNotFound(env); };
+    	def addException(env, service) { failures.addException(env, service); };
+    	def addParticipantDisconnection(env, service) { failures.addParticipantDisconnection(env, service); };
+    	def addParticipantTimeout(env, service) { failures.addParticipantTimeout(env, service); };
+    	def addParticipantNotFound(env) { failures.addParticipantNotFound(env); };
+    	def addParticipantException(env, service) { failures.addParticipantException(env, service); };
+    	def getDisconnections() { failures.disconnectionIds.length; };
+    	def getTimeouts() { failures.timeoutIds.length; };
+    	def getNoutFounds() { failurs.notFoundIds.length; };
+    	def getExceptions() { failures.exceptionIds.length; };
+    	def getParticipantDisconnections() { failures.participantDisconnectionIds.length; };
+    	def getParticipantTimeouts() { failures.participantTimeoutIds.length; };
+    	def getParticipantNoutFounds() { failurs.participantNotFoundIds.length; };
+    	def getParticipantExceptions() { failures.participantExceptionIds.length; };
+    } taggedAs: [GroupPattern];
+    obj;
+};
+
+
+
+def CRIMEGroupInteractionsModule := object: {
+    deftype Service;
+    def ServiceDatabase := ServiceDatabase;
+    def Group := &Group;
+    def SnapshotGroup := &SnapshotGroup;
+};

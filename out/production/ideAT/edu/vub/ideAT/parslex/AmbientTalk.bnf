@@ -1,0 +1,98 @@
+{
+  parserClass="edu.vub.ideAT.parslex.ATParser"
+
+  extends="com.intellij.extapi.psi.ASTWrapperPsiElement"
+
+  psiClassPrefix="AT"
+  psiImplClassSuffix="Impl"
+  psiPackage="edu.vub.ideAT.psi"
+  psiImplPackage="edu.vub.ideAT.psi.impl"
+
+  elementTypeHolderClass="edu.vub.ideAT.psi.ATTypes"
+  elementTypeClass="edu.vub.ideAT.psi.ATElementType"
+  tokenTypeClass="edu.vub.ideAT.psi.ATTokenType"
+
+  tokens = [
+    DEF_KEY             = 'def'
+    DEFTYPE_KEY         = 'deftype'
+    IF_KEY              = 'if:'
+    THEN_KEY            = 'then:'
+    ELSE_KEY            = 'else:'
+    EACH_KEY            = 'each:'
+    WHILE_KEY           = 'while:'
+    DO_KEY              = 'do:'
+    UNLESS_KEY          = 'unless:'
+    FOREACH_KEY         = 'foreach:'
+    IN_KEY              = 'in:'
+    RAISE_KEY           = 'raise:'
+    TRY_KEY             = 'try:'
+    CATCH_KEY           = 'catch:'
+    USING_KEY           = 'using:'
+    FINALLY_KEY         = 'finally:'
+    USINGHANDLERS_KEY   = 'usingHandlers:'
+    OBJECT_KEY          = 'object:'
+    ISOLATE_KEY         = 'isolate:'
+    NEW_KEY             = 'new'
+    EXTEND_KEY          = 'extend:'
+    WITH_KEY            = 'with:'
+    IS_KEY              = 'is:'
+    TAGGEDAS_KEY        = 'taggedAs:'
+    CHILDOF_KEY         = 'childOf:'
+    EXTENDS_KEY         = 'extends:'
+    TAGSOF_KEY          = 'tagsOf:'
+    SELF_KEY            = 'self'
+    SUPER_KEY           = 'super'
+    IMPORT_KEY          = 'import'
+    EXCLUDE_KEY         = 'exclude'
+    ALIAS_KEY           = 'alias'
+    MIRROR_KEY          = 'mirror:'
+    MIRROREDBY_KEY      = 'mirroredBy:'
+    BECOMEMIRROREDBY_KEY    = 'becomeMirroredBy:'
+    REFLECT_KEY             = 'reflect:'
+    REFLECTONACTOR_KEY      = 'reflectOnActor'
+    PRINT_KEY               = 'print:'
+    EVAL_KEY                = 'eval:'
+    READ_KEY                = 'read:'
+    ACTOR_KEY               = 'actor:'
+    WHENEVER_KEY            = 'whenever:'
+    DISCOVERED_KEY          = 'discovered:'
+    DISCONNECTED_KEY        = 'disconnected:'
+    RECONNECTED_KEY         = 'reconnected:'
+    TAKENOFFLINE_KEY        = 'takenOffline:'
+    WHEN_KEY                = 'when:'
+    BECOMES_KEY             = 'becomes:'
+    RETRACT_KEY             = 'retract:'
+    TAKEOFFLINE_KEY         = 'takeOffline:'
+    EXPORT_KEY              = 'export:'
+    AS_KEY                  = 'as:'
+    ASYNCSEND_KEY           = '<-'
+    SUBTYPE_KEY             = '<:'
+    HOSEND_KEY              = '<+'
+    NIL_CONST               = 'nil'
+    TRUE_CONST              = 'true'
+    FALSE_CONST             = 'false'
+    GREAT_OP                = '>'
+    EQ_OP                   = '=='
+    AND_OP                  = '&'
+    DIV_OP                  = '/'
+    OR_OP                   = '|'
+    ASSIGN_OP               = ':='
+    AT_OP                   = '@'
+    POW_OP                  = '^'
+    PLUS_OP                 = '+'
+    MIN_OP                  = '-'
+    COL_OP                  = ':'
+    TILD_OP                 = '~'
+    MUL_OP                  = '*'
+  ]
+}
+
+ATFile ::= expression*
+
+expression ::= keyword | operator | constant
+
+keyword ::= "def" | "deftype" | "if:" | "then:" | "else:" | "each:" | "while:" | "do:" | "unless:" | "foreach:" | "in:" | "raise:" | "try:" | "catch:" | "using:" | "finally:" | "usingHandlers:" | "object:" | "isolate:" | "new" | "extend:" | "with:" | "is:" | "taggedAs:" | "childOf:" | "extends:" | "tagsOf:" | "self" | "super" | "import" | "exclude" | "alias" | "mirror:" | "mirroredBy:" | "becomeMirroredBy:" | "reflect:" | "reflectOnActor" | "print:" | "eval:" | "read:" | "actor:" | "whenever:" | "discovered:" | "disconnected:" | "reconnected:" | "takenOffline:" | "when:" | "becomes:" | "retract:" | "takeOffline:" | "export:" | "as:" | "<-" | "<:" | "<+"
+
+constant ::= "nil" | "true" | "false"
+
+operator ::= ">" | "==" | "&" | "/" | "|" | ":=" | "@" | "^" | "+" | "-" | ":" | "~" | "*"

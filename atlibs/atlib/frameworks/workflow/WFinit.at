@@ -1,0 +1,108 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Software Languages Lab, 2006 - 2011
+ * Authors: Soft Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * @author eline.philips
+ */ 
+ 
+ 
+deftype OutputTag <: lobby.at.lang.types.Closure, lobby.at.lang.types.TypeTag;
+deftype Trigger; 
+deftype Pattern;
+deftype SyncPattern <: Pattern;
+deftype GroupPattern <: Pattern;
+deftype Table;
+def id := 0;
+def groupId := 0;
+deftype Variable;
+deftype Compensation;
+deftype ParticipantCompensation <: Compensation;
+deftype RetryType <: Compensation;
+deftype RediscoverType <: Compensation;
+deftype SkipType <: Compensation;
+deftype RestartType <: Compensation;
+deftype WaitType <: Compensation;
+deftype ComponentType <: Compensation;
+deftype AlternativeType <: Compensation;
+deftype DropType <: ParticipantCompensation;
+deftype FailureType;
+deftype DisconnectionType <: FailureType;
+deftype TimeoutType <: FailureType;
+deftype NotFoundType <: FailureType;
+deftype ExceptionType <: FailureType;
+deftype ParticipantFailure;
+deftype ParticipantDisconnectionType <: ParticipantFailure, DisconnectionType;
+deftype ParticipantTimeoutType <: ParticipantFailure, TimeoutType;
+deftype ParticipantNotFoundType <: ParticipantFailure, NotFoundType;
+deftype ParticipantExceptionType <: ParticipantFailure, ExceptionType;
+deftype CombinerType <: FailureType;
+deftype ConditionType;
+deftype TimeConstraint;
+deftype Environment;
+deftype WrongCompensation <: lobby.at.lang.types.Exception;
+def XWrongCompensation := lobby.at.lang.exceptions.createException(WrongCompensation);
+deftype ServiceException <: lobby.at.lang.types.Exception;
+def XServiceException := lobby.at.lang.exceptions.createException(ServiceException);
+
+def InitModule := object: {
+    def Pattern := Pattern;
+    def SyncPattern := SyncPattern;
+    def GroupPattern := GroupPattern;
+    def OutputTag := OutputTag;
+    def Trigger := Trigger;
+    def Table := Table;
+    def id := id;
+    def groupId := groupId;
+    def Variable := Variable;
+    def Compensation := Compensation;
+    def ParticipantCompensation := ParticipantCompensation;
+	def RetryType := RetryType;
+	def RediscoverType := RediscoverType;
+	def SkipType := SkipType;
+	def RestartType := RestartType;
+	def WaitType := WaitType;
+	def ComponentType := ComponentType;
+	def AlternativeType := AlternativeType;
+	def DropType := DropType;
+	def FailureType := FailureType;
+	def DisconnectionType := DisconnectionType;
+	def TimeoutType := TimeoutType;
+	def NotFoundType := NotFoundType;
+	def ExceptionType := ExceptionType;
+	def ParticipantFailure := ParticipantFailure;
+	def ParticipantDisconnectionType := ParticipantDisconnectionType;
+	def ParticipantTimeoutType := ParticipantTimeoutType;
+	def ParticipantNotFoundType := ParticipantNotFoundType;
+	def ParticipantExceptionType := ParticipantExceptionType;
+	def CombinerType := CombinerType;
+	def ConditionType := ConditionType;
+	def TimeConstraint := TimeConstraint;
+	def Environment := Environment;
+	def WrongCompensation := WrongCompensation;
+	def XWrongCompensation := XWrongCompensation;
+	def ServiceException := ServiceException;
+	def XServiceException := XServiceException;
+};
+

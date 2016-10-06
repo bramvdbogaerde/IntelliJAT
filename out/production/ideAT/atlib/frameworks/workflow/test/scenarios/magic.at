@@ -1,0 +1,107 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Software Languages Lab, 2006 - 2011
+ * Authors: Soft Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * @author eline.philips
+ */
+ 
+
+def initModule := lobby.frameworks.workflow.WFinit;
+def environmentModule := lobby.frameworks.workflow.environment;
+def activityModule := lobby.frameworks.workflow.activity;
+def standardPatternsModule := lobby.frameworks.workflow.standardPatterns;
+def compensatingActionsModule := lobby.frameworks.workflow.compensatingActions;
+def crimeModule := lobby.bridges.crime.CrimeConnection;
+def intensionalModule := lobby.frameworks.workflow.intensional;
+def CRIMEgroupInteractionsModule := lobby.frameworks.workflow.CRIMEgroupInteractions;
+
+import initModule;
+import environmentModule;
+import activityModule;
+import standardPatternsModule;
+import compensatingActionsModule;
+import crimeModule;
+import intensionalModule;
+import CRIMEgroupInteractionsModule;
+import /.at.lang.values;
+import /.at.lang.futures;
+enableFutures(false);
+network.online();
+
+
+def WFenv := SystemEnvironment.new();
+def ServiceDB := ServiceDatabase.new();
+WFenv.serviceDB := ServiceDB;
+deftype SOFTmember <: Service;
+
+
+def Local(blk) {
+    object: {
+        def block := blk;
+        def resolvers := [];
+
+        def start(env) {
+            def [result, resolver] := makeFuture();
+            resolvers := resolvers + [[env.id, resolver]];   
+            block(env);      
+            resolver.resolve(env);
+            result;
+        };
+        
+        def cancel(env) {
+        	def resolver;
+        	resolvers.each: { |p| if: ( p[1] == env.id) then: { resolver := p[2]; }; };
+        	if: ! (resolver == nil) then: {
+        		resolver.ruin(/.at.lang.types.Exception);
+        	};
+        };
+    } taggedAs: [Pattern];
+};
+
+
+def exc :=  ExclusiveChoice( { |draft| draft == "yes" }, 
+							 Sequence( Env.p.ask("Do you have your own boosters?")@Output(Env.boosters), Local({|e| e.print()}) ),
+							 //Env.p.ask("Do you have your own boosters?")@Output(Env.boosters),
+							 //Env.p.ask("Do you want to join the draft?")@Output(Env.joinDraft) );
+							 Sequence( Env.p.ask("Do you want to join the draft?")@Output(Env.joinDraft),  Local({|e| e.print()}) ) );
+
+def draft := Env.p.ask("Interested in a draft?")@Output(Env.draft);
+
+def seq := Sequence( Env.p.ask("Interested in playing magic next Saturday?")@Output(Env.magic),
+	                 CancellingBarrier(percentage(100)),
+					 Filter( { |e| e.find(`magic) == "yes"} ),
+					 draft );
+
+def group := SnapshotGroup( SOFTmember,
+							`p,
+							Sequence( seq,
+									  CancellingBarrier(At(Time(23,15, 0))),
+									  //CancellingBarrier(After(5, draft)),
+									  exc));
+									  
+									  									   
+
+
+

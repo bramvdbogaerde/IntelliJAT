@@ -1,0 +1,278 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Software Languages Lab, 2006 - 2011
+ * Authors: Soft Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * @author eline.philips
+ */
+ 
+ 
+def initModule := lobby.frameworks.workflow.WFinit;
+def dictionaryModule := lobby.frameworks.workflow.dictionary;
+def activityModule := lobby.frameworks.workflow.activity;
+import initModule;
+import dictionaryModule;
+import activityModule;
+import /.at.lang.values;
+import /.at.lang.futures;
+def Double := jlobby.java.lang.Double;
+
+
+/**
+* Compensating action retry.
+* This tries to invoke the same service again.
+* @param maxTimes: the meximum number of times this action can be executed
+* @param action: (optional) the action that is performed when the maximum number is exceeded
+*/
+def Retry(_maxTimes := Double.POSITIVE_INFINITY, _action := nil) {
+    object: {
+        def maxTimes := _maxTimes;
+        def triedTimes := 0;
+        def action := _action; 
+        
+        def start(env, activity, failureDescription) {
+        	if: (is: failureDescription.failureEvent taggedAs: NotFoundType) then: {
+        		// When the service was not found, it can not be invoked.
+        		raise: XWrongCompensation.new("Retry is not a valid compensating action");
+        	} else: {
+        		def group := env.group;
+        		if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        			raise: XWrongCompensation.new("Retry is not a valid compensating action when the group has already finished execution");
+        		} else: {
+        			if: (triedTimes < maxTimes) then: {
+           				// Try to invoke the same service again.
+                		triedTimes := triedTimes + 1;
+                		activity.retry(env);
+            		} else: {
+                		// Execute the compensating action specified by Retry (if one is specified).
+						if: ! (action == nil) then: {
+                			action.start(env, activity, failureDescription);
+                		};
+                	};
+                };
+            };
+        };
+    } taggedAs: [RetryType];
+};
+
+
+/**
+* Compensating action rediscover.
+* Try to discover a service of the same type tag (results in possibly an other service).
+* @param maxTimes: the maximum number of times this compensation can be executed
+* @param action: (optional) the action that needs to be executed when the maximum number is exceeded
+*/ 
+def Rediscover(_maxTimes := Double.POSITIVE_INFINITY, _action := nil) {
+    object: {
+        def maxTimes := _maxTimes;
+        def triedTimes := 0;
+        def action := _action; 
+    
+    	def start(env, activity, failureDescription) {
+    		def group := env.group;
+        	if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        		raise: XWrongCompensation.new("Rediscover is not a valid compensating action when the group has already finished execution");
+        	} else: {
+    			def res := triedTimes < maxTimes;
+        		if: (triedTimes < maxTimes) then: {
+        	    	// Try to execute the same activity again, which will rediscover a (possibly other) service.
+            		triedTimes := triedTimes + 1;
+                	activity.restart(env);
+     	       } else: {
+        	    	if: ! (action == nil) then: {
+            			// Execute the compensating action specified by Rediscover (if one is specified).
+						action.start(env, activity, failureDescription);
+					};
+				};
+			};
+        };
+    } taggedAs: [RediscoverType];
+};
+
+
+/**
+* Compensating action skip.
+* Skip the running activity when a failure occured.
+*/ 
+def Skip() {
+    object: {
+        def maxTimes := 1;
+        def triedTimes := 0;
+    
+        def start(env, activity, failureDescription) {
+        	def group := env.group;
+        	if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        		raise: XWrongCompensation.new("Skip is not a valid compensating action when the group has already finished execution");
+        	} else: {
+        		activity.skip(env);
+        	};
+        };
+    } taggedAs: [SkipType];
+};
+
+
+/**
+* Compensating action restart.
+* Restarts the component surrounded by the failure pattern.
+* @param maxTimes: the maximum number of times this compensation can be executed
+* @param action: (optional) the action that needs to be executed when the maximum number is exceeded
+*/ 
+def Restart(_maxTimes := Double.POSITIVE_INFINITY, _action := nil) {
+    object: {
+        def maxTimes := _maxTimes;
+        def triedTimes := 0;
+        def action := _action; 
+        
+        def start(env, activity, failureDescription) {        
+        	def group := env.group;
+        	if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        		raise: XWrongCompensation.new("Restart is not a valid compensating action when the group has already finished execution");
+        	} else: {
+        		if: (triedTimes < maxTimes) then: {        	        		
+	        		// Restart the entirely wrapped subworkflow.
+					triedTimes := triedTimes + 1;
+					failureDescription.failurePattern.restart(env);
+				} else: {
+					if: ! (action == nil) then: {
+        	        	action.start(env, activity, failureDescription);
+            	    };
+        	  	 };
+        	};			
+        };
+    } taggedAs: [RestartType];
+};
+
+
+/**
+* Compensating action restart.
+* Wait for a period and then execute an other action.
+* @param duration: the duration for which the execution must wait before executing the action
+* @param action:  the action that needs to be executed after waiting
+*/ 
+def Wait(duration, _action) {
+	object: {
+		def time := duration;
+        def action := _action; 
+        
+        def start(env, activity, failureDescription) {
+        	def group := env.group;
+        	if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        		raise: XWrongCompensation.new("Wait is not a valid compensating action when the group has already finished execution");
+        	} else: {
+        		/.at.support.timer.when: /.at.support.timer.seconds(time) elapsed: { 
+        			action.start(env, activity, failureDescription);
+             	};
+             };
+        };
+    } taggedAs: [WaitType];
+};
+
+
+/**
+* Compensating action component.
+* Replaces the component surrounded by the failure pattern with another action and executes this.
+* The execution of the surrounded component is being cancelled.
+* @param action: the action that needs to be executed 
+*/ 
+def Component(_action) {
+    object: {
+        def action := _action;
+    
+        def start(env, activity, failureDescription) {
+        	def group := env.group;
+        	if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        		raise: XWrongCompensation.new("Component is not a valid compensating action when the group has already finished execution");
+        	} else: {
+				// The compensating action is a workflow component (pattern or activity).
+				// Continue by resolving the future of the surrounding failure pattern.
+				def groupVarName := group.varName;
+        		if: ! (groupVarName == nil) then: { nEnv.delete(varName);  };
+        		failureDescription.failurePattern.replace(action, env);
+        	};
+        };
+    } taggedAs: [ComponentType];
+};
+
+
+/**
+* Compensating action alternative.
+* Replaces the component surrounded by the failure pattern and everything following it with another action and executes this.
+* The execution of the surrounded component and the remainder of the workflow are being cancelled.
+* @param action: the action that needs to be executed 
+*/ 
+def Alternative(_action) {
+	object: {
+		def action := _action;
+		
+		def start(env, activity, failureDescription) {
+			def group := env.group;
+        	if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        		raise: XWrongCompensation.new("Alternative is not a valid compensating action when the group has already finished execution");
+        	} else: {
+				if: (is: failureDescription.failureEvent taggedAs: ParticipantFailure) then: {
+					def group := env.group;  
+					group.decrease();
+				};
+				// Cancel the remainder of the subworkflow.
+				failureDescription.failurePattern.cancel(env);
+				def groupVarName := group.varName;
+        		if: ! (groupVarName == nil) then: { nEnv.delete(varName);  };
+				action.start(env);
+			};
+        };
+    } taggedAs: [AlternativeType];
+};
+
+
+/**
+* Compensating action component (group interactions).
+* Drops the paticipant that caused the failure from the group, increasing the number of participants..
+*/ 
+def Drop() {
+	object: {
+		
+		 def start(env, activity, failureDescription) {
+		 	def group := env.group;
+        	if: ! ( group.compensationAllowed(failureDescription, env) ) then: {
+        		raise: XWrongCompensation.new("Drop is not a valid compensating action when the group has already finished execution");
+        	} else: {
+        		activity.drop(env);
+        		env.group.join.drop(env);
+        	};
+        };
+	} taggedAs: [DropType];
+};
+
+
+
+def CompensatingActionsModule := object: {
+    def Restart := &Restart;
+    def Skip := &Skip;
+    def Rediscover := &Rediscover;
+    def Retry := &Retry;
+    def Wait := &Wait;
+    def Component := &Component;
+    def Alternative := &Alternative;
+    def Drop := &Drop;
+};

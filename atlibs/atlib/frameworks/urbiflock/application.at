@@ -1,0 +1,175 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Programming Technology Lab, 2006 - 2008
+ * Authors: PROG Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+import /.at.lang.futures;
+
+// All Urbiflock applications have:
+// - a name (String)
+// - an owner (Flockr)
+def makeApplication(initName, localOwnerInterface) {
+	def exportPublication;
+		
+	object: {
+		def name() { initName };
+		def owner() { localOwnerInterface };
+		
+		def remoteApplicationInterface := object: {
+			def name() { initName };
+			def getOwnerAndProfile() {
+				[localOwnerInterface.remoteInterface, localOwnerInterface.getProfile ]
+			}
+		};
+		
+		/* l should understand:
+		     notifyApplicationJoined(flockr : farref to flockr, buddyProfile : profile, app : farref to application)
+		       invoked whenever an application was discovered
+		     notifyApplicationLeft(flockr : farref to flockr, buddyProfile : profile, app : farref to application)
+		       invoked whenever an application is no longer present
+		  returns: an object whose cancel method cancels the registration
+		*/
+		def registerApplicationListener(type, l) {
+			def discSub := whenever: type discovered: { |remoteApp|
+				when: remoteApp<-getOwnerAndProfile()@FutureMessage becomes: { |ownerAndProfile|
+					def [flockr, itsProfile] := ownerAndProfile;
+					l<-notifyApplicationJoined(flockr, itsProfile, remoteApp);
+					when: remoteApp disconnected: {
+						l<-notifyApplicationLeft(flockr, itsProfile, remoteApp);
+					}
+				};
+			};
+		};
+				
+		def start();
+		def pause();
+		def unpause();
+		def stop() {
+			(exportPublication != nil).ifTrue: {
+				exportPublication.cancel();
+				exportPublication := nil;
+				takeOffline: self.remoteApplicationInterface;
+			};
+		};
+		
+		def export(asType) {
+			exportPublication := export: self.remoteApplicationInterface as: asType;
+		}
+	}
+};
+
+// returns a table of the applications installed by default into the framework
+// localFlockrI should be a 'local interface' to a flockr
+def makeFrameworkApplications(localFlockrI) {
+	[
+	// "My Profile" editor application
+	extend: makeApplication("My Profile", localFlockrI) with: {
+		def start() {
+			jlobby.frameworks.urbiflock.ui.ProfileViewer.new(localFlockrI, localFlockrI.getProfile, true)
+		}
+	}
+	,
+	// "Flocks" flock list viewer application
+	extend: makeApplication("Flocks", localFlockrI) with: {
+		def start() {
+			jlobby.frameworks.urbiflock.ui.FlockListViewer.new(localFlockrI)
+		}
+	}
+	]
+};
+
+// the module object of this file
+object: {
+	
+	def makeApplication := &makeApplication;
+	def makeFrameworkApplications := &makeFrameworkApplications;
+	
+	def ApplicationTest := extend: /.at.unit.test.UnitTest.new("ApplicationTest") with: {
+		
+		// unit tests go here
+		
+		def flockr1;
+		def actorHostingFlockr2;
+		deftype TestApp1;
+	  
+		def setUp() {
+			// create two new flockrs, one in this actor, the other in a new actor
+			def profile1 := /.frameworks.urbiflock.profile.makeProfile();
+			profile1.username := "uid1";
+		  flockr1 := /.frameworks.urbiflock.flockr.makeFlockr(profile1);
+		
+		  actorHostingFlockr2 := actor: {
+				import /.frameworks.urbiflock.flockr;
+				deftype TestApp1;
+				
+				def profile2 := /.frameworks.urbiflock.profile.makeProfile();
+				profile2.username := "uid2";
+				profile2.firstname := "Flockr 2 first name";
+			  def flockr2 := makeFlockr(profile2);
+			  
+				def testApp := /.frameworks.urbiflock.application.makeApplication("testApp", flockr2);
+				testApp.export(TestApp1);
+				flockr2.addApplication(testApp);
+			
+			  def getFlock() { flockr2.remoteInterface };
+			
+			  def goOffline() { flockr2.goOffline(); `ok };
+		  }
+		};
+		
+		def tearDown() {
+			// clean up the flockrs created for each test
+			flockr1.goOffline();
+			actorHostingFlockr2<-goOffline()@FutureMessage;
+			// because we return a future, tearDown will wait
+			// until the second flock has been taken offline before
+			// starting the next test
+		};
+		
+		def testAsyncDiscoverApplication() {
+			def testApp := makeApplication("testApp", flockr1);
+			flockr1.addApplication(testApp);
+			
+			def [fut, res] := makeFuture();
+			
+			testApp.registerApplicationListener(TestApp1, object: {
+				def notifyApplicationJoined(flockr, profile, app) {
+					res.resolve([flockr, profile, app]);
+				}
+			});
+			
+			when: fut becomes: { |args|
+				def [flockr, profile, app] := args;
+				self.assertEquals("uid2", /.frameworks.urbiflock.flockr.uidOf(flockr), "flockr does not match");
+				self.assertEquals("uid2", profile.username, "profile does not match");
+				when: app<-name()@FutureMessage becomes: { |nam|
+					self.assertEquals("testApp", nam, "app does not match");
+				}
+			};
+		};
+		
+	};
+	
+};

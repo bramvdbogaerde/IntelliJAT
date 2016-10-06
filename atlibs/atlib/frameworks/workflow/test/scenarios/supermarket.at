@@ -1,0 +1,98 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Software Languages Lab, 2006 - 2011
+ * Authors: Soft Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * @author eline.philips
+ */
+ 
+
+def initModule := lobby.frameworks.workflow.WFinit;
+def environmentModule := lobby.frameworks.workflow.environment;
+def activityModule := lobby.frameworks.workflow.activity;
+def standardPatternsModule := lobby.frameworks.workflow.standardPatterns;
+def failuresModule := lobby.frameworks.workflow.failures;
+def compensatingActionsModule := lobby.frameworks.workflow.compensatingActions;
+def crimeModule := lobby.bridges.crime.CrimeConnection;
+def intensionalModule := lobby.frameworks.workflow.intensional;
+def CRIMEgroupInteractionsModule := lobby.frameworks.workflow.CRIMEgroupInteractions;
+
+import initModule;
+import environmentModule;
+import activityModule;
+import standardPatternsModule;
+import failuresModule;
+import compensatingActionsModule;
+//import groupInteractionsModule;
+import crimeModule;
+import intensionalModule;
+import CRIMEgroupInteractionsModule;
+
+
+def WFenv := SystemEnvironment.new();
+def ServiceDB := ServiceDatabase.new();
+
+WFenv.insert(`customer, "Stijn Verhaegen");
+WFenv.insert(`notFound, "default");
+WFenv.insert(`disconnection, "default");
+WFenv.insert(`timeout, "default");
+
+import /.at.lang.values;
+import /.at.lang.futures;
+enableFutures(false);
+network.online();
+
+
+def MessagingService := defService(`MessagingService);
+def Customer := defService(`Customer);
+def RecommendationService := defService(`RecommendationService);
+def Shop := defService(`Shop);
+def AnnouncementService := defService(`AnnouncementService);
+def Stock := defService(`Stock);
+
+
+
+def exc := ExclusiveChoice( { |in_stock| in_stock }, 
+							Sequence( Shop.getLocation(Env.articles)@Output(Env.locs),
+							          Failure( Customer.updateMap(Env.locs),
+							                   [ [Disconnection(), Rediscover(1)],
+							                     [NotFound(), Rediscover(1)] ] ) ),
+							Failure( Customer.notInStock(),
+									 [ [Timeout(10), AnnouncementService.goToCustomerService(Env.customer)],
+									   [NotFound(), AnnouncementService.goToCustomerService(Env.customer)] ] ) );   
+							                
+
+
+def parSplit := ParallelSplit( Sequence(Stock.check(Env.articles)@Output(Env.in_stock), exc ),
+                               Failure( Sequence( RecommendationService.get(Env.articles)@Output(Env.recommendations),
+                                                  Customer.recommend(Env.recommendations) ),
+                                        [ [Timeout(10), Rediscover(1, Skip())],
+                                          [Disconnection(), Skip()],
+                                          [NotFound(), Skip()] ] ) );
+
+
+def seq := Sequence( Customer.shoppingList()@Output(Env.articles), parSplit);
+
+
+

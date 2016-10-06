@@ -1,0 +1,611 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Programming Technology Lab, 2006 - 2010
+ * Authors: SOFT Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+
+def CrimeFactory := jlobby.edu.vub.crime.CrimeFactory;
+def ExpressionFactory := jlobby.edu.vub.crime.grammar.ExpressionFactory;
+def GenericFact := jlobby.edu.vub.crime.grammar.GenericFact;
+def ExpressionList := jlobby.edu.vub.crime.grammar.ExpressionList;
+def Event := jlobby.edu.vub.crime.grammar.Event;
+def AmbientTalkEvent := jlobby.edu.vub.crime.grammar.AmbientTalkEvent;
+def AmbientTalkAction := jlobby.edu.vub.crime.AmbientTalkAction;
+def IndexingVisitor := jlobby.edu.vub.crime.parser.IndexingVisitor;
+def AmbientTalkVisitor := jlobby.edu.vub.crime.grammar.utils.AmbientTalkVisitor;
+def Constraint := jlobby.edu.vub.crime.grammar.Constraint;
+def Operator := jlobby.edu.vub.crime.grammar.attributes.Operator;
+def AmbientTalkConstraint := jlobby.edu.vub.crime.grammar.AmbientTalkConstraint;
+import /.at.lang.exceptions;
+
+def isJavaObject(o) {
+	((reflect: o).listMethods.map: { |e| e.name }).contains(`getClass);
+};
+
+def isNatTable(o) {
+	((reflect: o).listMethods.map: { |e| e.name }).contains(`atPut);
+};
+
+def mapArguments(args,vars) {
+	def argmap := jlobby.java.util.HashMap.new();		
+	def it := vars.iterator;
+	def i := 0;
+	while: { it.hasNext } do: {
+		def var := it.next;
+		argmap.put(var.toString(), args.get(i));
+		i := i +1;
+	};
+
+	object: {
+		def get(literal) {
+			//UGLY UGLY UGLY 
+			//Reason I can't seem to convert a string to literal so I have to do it the otherway around
+			//+ The getName of a variable puts a ?
+			def visitor := jlobby.edu.vub.crime.grammar.utils.AmbientTalkVisitor.new("convert","convert");
+			visitor.visit(argmap.get("?"+literal.text()));
+			visitor.value;
+		};
+	};
+};
+
+def newAmbientTalkEvent(act,deact,vars) {
+	def event := AmbientTalkEvent.new(
+	AmbientTalkAction.new(
+		object: {
+			def getClass() { jlobby.edu.vub.crime.Action };
+			
+			def getVectorVariables(token) {
+				def fact := event.buildFact(token);	
+			 	fact.attributes();
+			};
+		
+			def activated(token){
+				//REALLY REALLY REALLY DIRTY 
+				act((token.get(0)).toVector(),mapArguments(getVectorVariables(token.get(0)),vars)); 
+			};
+			def deactivate(token){ 
+				//REALLY REALLY REALLY DIRTY 
+				deact((token.get(0)).toVector(),mapArguments(getVectorVariables(token.get(0)),vars)); 
+			}; 
+	}));
+};
+
+def newEvent(act,deact,vars) {
+	Event.new(
+	AmbientTalkAction.new(
+		object: {
+			def getClass() { jlobby.edu.vub.crime.Action };
+			def activated(vectorVariables){ 		
+				act(mapArguments(vectorVariables,vars)); 
+			};
+			def deactivate(vectorVariables){ 
+				deact(mapArguments(vectorVariables,vars)); 
+			}; 
+	}));
+};
+
+def convertFactToAmbientTalk(fact) {
+	def visitor :=  AmbientTalkVisitor.new("convert","convert");
+	def attributes := fact.attributes;
+	//system.println("fact.atributes" + attributes);
+	def it := attributes.iterator;
+	def tab := [];
+	while: { it.hasNext } do: {
+		visitor.visit(it.next);
+		tab := tab + [visitor.value];
+	};
+	//system.println("tab is " + tab);
+	makeTuple(tab);
+};
+
+def convertTokenToAmbientTalk( token ){
+	def it := token.iterator;
+	def tab := [];
+	while: { it.hasNext } do: {
+		tab := tab + [convertFactToAmbientTalk(it.next)];
+	};	
+	tab;
+};
+
+
+def convertTable(table) {
+		def list := ExpressionFactory.list();
+		table.each: { |a|
+			if: isJavaObject(a) then: {
+				//its a variable so we don't need to make it into an argument anymore
+				list.add(a);
+			} else: {
+				if: isNatTable(a) then: {
+					list.add(convertTable(a));
+				} else: {
+					//its a constant and will be converted anyway by the coercer 
+					def attr := ExpressionFactory.attribute(a);
+					list.add(attr);
+				};
+			};
+		};
+		list;
+};
+
+def convertTupleToCrimeFact(tuple, rule) {
+	def newFact := GenericFact.new( "private" , tuple.getField(1) );
+	def theIndexer :=  IndexingVisitor.new(newFact);
+	def index := 1;
+	newFact.setItsContextRule(rule);
+	tuple.each: { |f|
+		if: isJavaObject(f) then: {
+			//its a variable so we don't need to make it into an argument anymore
+			theIndexer.nextAttribute(f);
+		} else: {
+			if: isNatTable(f) then: {
+				theIndexer.nextAttribute(convertTable(f));
+			} else: {
+				//its a constant and will be converted anyway by the coercer 
+				def attr := ExpressionFactory.attribute(f);
+				theIndexer.nextAttribute(attr);
+			};
+		};
+	};
+	newFact;
+};
+
+def packRule(table,act,deact) {
+	isolate: { |table,act,deact|
+		def getTable() {table};
+		def getAct() {act};
+		def getDeact() {deact};
+	};
+};
+
+def makeRule(table,act,deact,eventMaker := &newEvent) {
+	def prerequisite := ExpressionList.whichAcceptsFacts();
+	def consequence := ExpressionList.whichAcceptsFactsAndEvents();
+	table.each: {|e| 		
+		if: isJavaObject(e) then: { 
+			prerequisite.add(e);
+		} else: {
+			prerequisite.add(convertTupleToCrimeFact(e,nil)); 
+		};
+	};
+	def vars := prerequisite.variables;
+	def it := vars.iterator;
+	def event := eventMaker(act, deact,vars);
+	while: { it.hasNext } do: {
+		event.addAttribute(it.next);
+	};
+	consequence.add(event);
+	ExpressionFactory.rule(consequence, prerequisite);
+};
+
+def makeTemplate(@fields) {
+	isolate: {
+	def length(){ fields.length };
+	def getField(n) { fields[n] };
+	def match(t1) {
+		if: (t1.length == self.length) then: {
+			def it := 1;
+			def result := true;
+			fields.each: {|e2| 
+				def e1 := t1.getField(it); 
+				result := result.and: { e1 = e2 };
+				it := it +1; 
+			};
+			result;
+		} else: {
+			false;
+		};
+	};
+	def toString(){ fields };
+	def each: l  {
+		fields.each: l;
+	};
+	};
+};
+
+def makeTuple(@fields) {
+	fields.each: { |e|
+		if: isJavaObject(e) then: {
+			error("Attempt to create a tuple with a variable !"); 
+		};
+	};
+	makeTemplate(@fields);
+};
+
+def makeCrimeEngine() { 
+	
+	//create new engine;
+	def engine := CrimeFactory.createEngine();
+	
+	//public interface of a crime engine.
+	object: {
+	
+    def insertTuple(tuple, rule := nil) {
+	    engine.assert(convertTupleToCrimeFact(tuple,rule));
+    };
+
+    def retractTuple(tuple) {
+	  def crimeFact := engine.retract(convertTupleToCrimeFact(tuple,nil));
+	  if: (nil != crimeFact) then: {
+		convertFactToAmbientTalk(crimeFact);
+	  } else: { crimeFact}; 
+    };
+
+	def retractCrimeFact(fact) {
+		engine.retract(fact);
+	};
+
+	def readTuple(template) {
+	  def crimeFact := engine.read(convertTupleToCrimeFact(template,nil));
+	  if: (nil != crimeFact) then: {
+		convertFactToAmbientTalk(crimeFact);
+	  } else: { crimeFact};
+	};
+
+    def when: table activated: act {
+	    when: table activated: act deactivated: {|args| nil};
+    };
+
+    def when: table activated: act deactivated: deact {
+		when: table activated: act deactivated: deact withConstraints: [];
+    };
+
+	def when: table activated: act withConstraints: constraints {
+		when: table activated: act deactivated: {|args| nil} withConstraints: constraints;
+	};
+	
+	def when: table activated: act deactivated: deact withConstraints: constraints {
+		when: table activated: act deactivated: deact withConstraints: constraints event: &newEvent;
+	};
+
+	def when: table activated: act deactivated: deact withConstraints: constraints event: event  {
+	    def rule :=  makeRule(table,act, deact, event);
+		  constraints.each:{|c| rule.getPrerequisite().add(c) };
+	    engine.deploy(rule);
+	    isolate: {
+		    def cancel() {
+			    engine.undeploy(rule);
+		    };
+	    };
+    };
+
+	def when: table activatedToken: act {
+    	when: table activatedToken: act deactivatedToken: {|token, varMap|};		
+	};
+
+	def when: table activatedToken: act deactivatedToken: deact {
+		def rule :=  makeRule(table, act, deact, &newAmbientTalkEvent);
+	    engine.deploy(rule);
+	    isolate: { 
+		    def cancel() {
+			    engine.undeploy(rule);
+		    };
+	    };
+	};
+
+  };
+};
+
+def constraint(symbol, operator, value) {
+	Constraint.new(ExpressionFactory.variable(symbol.text), operator, ExpressionFactory.attribute(value));
+};
+
+def CrimeModule := object: {
+	
+	def makeCrimeEngine := &makeCrimeEngine;
+	def makeTuple := &makeTuple;
+	def makeTemplate := &makeTemplate;
+	def convertTokenToAmbientTalk := &convertTokenToAmbientTalk;
+	def convertFactToAmbientTalk := &convertFactToAmbientTalk;
+	def isJavaObject := &isJavaObject; //TODO remove?!
+	
+	def constraint: table with: block {
+		AmbientTalkConstraint.new(table, block);
+	};
+	
+	def var: symbol {
+		ExpressionFactory.variable(symbol.text);	
+	};
+	
+	def var: symbol equalsTo: value {
+		constraint(symbol, Operator.EQL, value);
+	};
+	
+	def var: symbol notEquals: value {
+		constraint(symbol, Operator.NEQ, value);
+	};
+	
+	def var: symbol lessThen: value {
+	 	constraint(symbol, Operator.LTH, value);
+	};
+	
+	def var: symbol greaterThen: value {
+	 	constraint(symbol, Operator.GTH, value);
+	};
+	
+	def var: symbol lessOrEqualTo: value {
+		constraint(symbol, Operator.LEQ, value);	 
+	};
+	
+	def var: symbol greaterOrEqualTo: value {
+		constraint(symbol, Operator.GEQ, value);	 
+	};	
+	
+	def CrimeTest := extend: /.at.unit.test.UnitTest.new("Crime", false) with: {
+		import /.at.lang.futures;
+		enableFutures(false);
+		def myCrime := makeCrimeEngine();
+				
+		///
+		// Tests the reading of crime tuples (does not remove the tuple).  TODO 
+		//
+		def testReadFromCrime() {
+			def tuple :=  makeTuple("testReadFromCrime", 3, 4);
+			myCrime.insertTuple(tuple);
+			def retrievedTuple := myCrime.readTuple(makeTemplate("testReadFromCrime", var: `x, 4));
+			retrievedTuple := myCrime.readTuple(makeTemplate("testReadFromCrime", var: `x, 4));			
+		};
+		
+		//
+		// Tests the reading of crime tuples with Tables
+		//
+		def testAsyncReadFromCrimeTable() {
+			def [fut,res] := makeFuture(); 
+			def tuple :=  makeTuple("testReadFromCrimeTable", [3, 4]);
+			myCrime.when:  [makeTemplate("testReadFromCrimeTable", var:`x)] activated: { |varMap|
+					self.assertEquals( 3, varMap.get(`x)[1]);
+					self.assertEquals( 4, varMap.get(`x)[2]);
+					res.resolve("OK");
+			};
+			myCrime.insertTuple(tuple);
+			fut;			
+		};
+		
+		//
+		// Tests the reading of crime tuples with table matching
+		//
+		def testAsyncReadFromCrimeTableMatch() {
+			def [fut,res] := makeFuture(); 
+			def tuple :=  makeTuple("testAsyncReadFromCrimeTableMatch", [3, 4]);
+			myCrime.when:  [makeTemplate("testAsyncReadFromCrimeTableMatch", [3, 4]) ] activated: { |varMap|
+					res.resolve("OK");
+			};
+			myCrime.insertTuple(tuple);
+			fut;			
+		}; 
+		
+		//
+		// Tests the reading of crime tuples with table matching with variable inside
+		//
+		def testAsyncReadFromCrimeTableMatchVar() {
+			def [fut,res] := makeFuture(); 
+			def tuple :=  makeTuple("testAsyncReadFromCrimeTableMatchVar", [3, 4, 5], 6);
+			myCrime.when:  [ makeTemplate("testAsyncReadFromCrimeTableMatchVar", [var: `x, var: `y, var: `p], var: `q) ] activated: { |varMap|
+					self.assertEquals(3, varMap.get(`x));
+					self.assertEquals(4, varMap.get(`y));
+					self.assertEquals(5, varMap.get(`p));
+					self.assertEquals(6, varMap.get(`q));
+					res.resolve("OK");
+			};
+			myCrime.insertTuple(tuple);
+			fut;			
+		};
+		
+		//
+		// Tests the reading of crime tuples with table matching with variable inside
+		//
+		def testAsyncReadFromCrimeTableMatchVarConstraint() {
+			def [fut,res] := makeFuture(); 
+			def tuple :=  makeTuple("testAsyncReadFromCrimeTableMatchVar", [ 3, 4, 5 ], 6);
+			myCrime.when:  [ makeTemplate("testAsyncReadFromCrimeTableMatchVar", [ var: `x, var: `y, var: `p], var: `q), var: `x lessThen: 10  ] activated: { |varMap|
+					self.assertEquals(3, varMap.get(`x));
+					self.assertEquals(4, varMap.get(`y));
+					self.assertEquals(5, varMap.get(`p));
+					self.assertEquals(6, varMap.get(`q));
+					res.resolve("OK");
+				};
+			myCrime.insertTuple(tuple);
+			fut;			
+		};
+			
+		
+		//
+		// Tests the insertions of crime tuples which are extended with AmbientTalk rules.  
+		//
+		def testRetrieveRuleFromCrime() {
+			def tuple :=  makeTuple("testRetrieveRuleFromCrime", 3, 4);
+			def ruleData := [ makeTemplate("testRetrieveRuleFromCrime", 30, 30) ];
+			myCrime.insertTuple(tuple, ruleData);
+			def retrievedTuple := myCrime.retractCrimeFact(convertTupleToCrimeFact(tuple,makeTemplate("testRetrieveRuleFromCrime", var: `x, 4)));
+			self.assertEquals(retrievedTuple.getItsContextRule, ruleData);
+		};
+		
+	   //
+	   // Test the constraint AmbientTalk construction
+	   //
+		def testAsyncAmbientTalkConstraint() {	
+			def [fut,res] := makeFuture(); 
+			myCrime.when:  [makeTemplate("testAsyncAmbientTalkConstraint", var:`x, var: `y), constraint: [ var:`x, var:`y] with: script: {|x,y| x+y == 7 }]  activated: { |varMap|
+				self.assertEquals( varMap.get(`x)+varMap.get(`y), 7);
+				res.resolve("OK");
+			};
+
+			def failTuple :=  makeTuple("testAsyncAmbientTalkConstraint", 80, 4);
+			def activatedTuple :=  makeTuple("testAsyncAmbientTalkConstraint", 3, 4);
+
+			myCrime.insertTuple(failTuple);
+			myCrime.insertTuple(activatedTuple);
+			fut;
+		};
+		
+		
+	    //
+	    // Test the constraint lessThen construction
+		// when: [Template1,..,TemplateN] activated: Closure 
+		// where template can include constraints put extra requirements on varibales 
+		//
+		def testAsyncConstraint() {	
+			def [fut,res] := makeFuture(); 
+					
+			myCrime.when:  [makeTemplate("testConstraint", var:`x, 4), var: `x lessThen: 10 ]  activated: { |varMap|
+				self.assertEquals(varMap.get(`x),3);
+				res.resolve("OK")
+			};
+			
+			def failTuple :=  makeTuple("testConstraint", 80, 4);
+			def activatedTuple :=  makeTuple("testConstraint", 3, 4);
+			
+			myCrime.insertTuple(failTuple);
+			myCrime.insertTuple(activatedTuple);
+			fut;
+		};
+	   
+		//
+		// Test the constraints construction for coordinates
+		//
+		def testAsyncConstraintBetween() {	
+			def [fut,res] := makeFuture(); 
+			
+			def test(table) {	
+				myCrime.when: table activated: { |varMap|
+					self.assertEquals(varMap.get(`x),12);
+					self.assertEquals(varMap.get(`y),13);
+					res.resolve("OK")
+				};
+			};
+			
+			def failTuple :=  makeTuple("testAsyncConstraintBetween", 3, 4);
+			myCrime.insertTuple(failTuple);
+			def activateTuple :=  makeTuple("testAsyncConstraintBetween", 12, 13);
+			myCrime.insertTuple(activateTuple);	
+			
+			test([ makeTemplate("testAsyncConstraintBetween", var:`x, var: `y), var: `x greaterOrEqualTo: 10, var: `x lessOrEqualTo: 14, var: `y greaterOrEqualTo: 10, var: `y lessOrEqualTo: 14 ]);
+			
+			fut;
+		};
+		
+		//
+	    // Tests the special construct to retrieve the token which triggered the rule.
+		// For example in  (defrule (some-action) => (t1 ?x ?y) (t2 ?x ?y)  ) 
+		// some-action could receive the following token [ (t1 5 6), (t2 5 6) ]
+		//
+		def testAsyncGetActivatedToken() {
+			def [fut,res] := makeFuture(); 
+			myCrime.when: [ makeTemplate("testAsyncGetActivatedToken", var:`x, 4) ] activatedToken: { |token, varMap|
+				self.assertEquals( 3, token.get(0).attributes().get(1).getValue());
+				self.assertEquals(varMap.get(`x),3);
+				res.resolve("OK");
+			};
+			myCrime.insertTuple(makeTuple("testAsyncGetActivatedToken", 3, 4));
+			fut;
+		};
+		
+		//
+		// Tests the special construct to retrieve the token which triggered the rule.
+		// For example in  (defrule (some-action) => (t1 ?x ?y) (t2 ?x ?y)  ) 
+		// some-action could receive the following token [ (t1 5 6), (t2 5 6) ]
+		//
+		def testAsyncGetDeactivatedToken(){
+			def [fut,res] := makeFuture(); 
+						
+			myCrime.when: [ makeTemplate("testAsyncGetDeactivatedToken", var:`x, 4) ] activatedToken: { |token, varMap|
+				convertTokenToAmbientTalk(token);
+				self.assertEquals( 3, token.get(0).attributes().get(1).getValue());
+				self.assertEquals(varMap.get(`x),3);
+			} deactivatedToken: {|token, varMap|
+				self.assertEquals( 3, token.get(0).attributes().get(1).getValue());
+				self.assertEquals(varMap.get(`x),3);
+				res.resolve("OK");
+			};
+			def tuple :=  makeTuple("testAsyncGetDeactivatedToken", 3, 4);
+			myCrime.insertTuple(tuple);
+			myCrime.retractTuple(tuple);
+			fut;		
+		};
+		
+		//
+		// Test that test the retraction of previously inserted tuples.
+		//	
+		def testAsyncRetracting(){
+			def [fut,res] := makeFuture(); 
+			def countInserts := 0; def countRetracts := 0;
+			myCrime.when: [makeTemplate("testAsyncRetracting", var: `x, var: `y)] activated: { |a|
+				countInserts := countInserts + 1;
+				self.assertLessThanOrEquals(countInserts,3);	
+			} deactivated: { |a| 
+				countRetracts := countRetracts + 1;
+				self.assertLessThanOrEquals(countRetracts,3);
+				if: (3 == countRetracts) 	then: { res.resolve(`ok)};
+			};
+			3.doTimes: { |i| myCrime.insertTuple(makeTuple("testAsyncRetracting", i, i)) };
+			3.doTimes: { |i| myCrime.retractTuple(makeTemplate("testAsyncRetracting", var: `x, var: `x))};
+			fut;
+		};
+		
+		def testAsyncActivate() {
+			def t1 := makeTemplate("testAsyncActivate", var: `x, 3);
+			def t2 := makeTemplate("testAsyncActivate", 3, var: `x);				
+			def [fut,res] := makeFuture();
+			
+			myCrime.when: [t1, t2] activated: {|args|
+				def x := args.get(`x);	
+				res.resolve(x);
+			} deactivated: { |args|
+				
+			};
+			def shouldTrigger := makeTuple("testAsyncActivate", 3, 3);
+			myCrime.insertTuple(shouldTrigger);
+			myCrime.retractTuple(shouldTrigger);
+			when: fut becomes: { |value|
+				self.assertEquals(3, value);	
+			};
+		};
+		
+		
+		
+		/*
+		def testAsyncSendRule() {
+			def [fut,res] := makeFuture();
+			def t1 := makeTemplate("testAsyncSendRule", var: `x, 3);
+			def t2 := makeTemplate("testAsyncSendRule", 3, var: `x);
+			
+			def a := actor: {
+				import /.bridges.crime.CrimeConnection;
+				def myCrime := makeCrimeEngine();
+				
+				def doOperation(rule,res) {				
+					myCrime.when: rule.getTable() activated: {|args|  
+					};
+					def shouldTrigger := makeTuple("testAsyncSendRule", 3, 3);
+					myCrime.insertTuple(shouldTrigger);
+					res.resolve(nil);
+				};
+			};
+
+			def packedRule := packRule([t1, t2], script: { |args,ma| system.println("<a:: >"+ma); }, script:{ |args,md| system.println("<d:: >"+md);});
+			a<-doOperation(packedRule,res);	
+			fut;
+		}; */
+	};
+};

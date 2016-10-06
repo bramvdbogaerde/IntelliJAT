@@ -1,0 +1,45 @@
+<idea-plugin version="1">
+  <id>edu.vub.ideAT</id>
+  <name>AmbientTalk IDE</name>
+  <version>1</version>
+  <vendor email="fmyter@vub.ac.be" url="soft.vub.ac.be">Software Languages Lab (Vrije Unversiteit Brussel)</vendor>
+
+  <description><![CDATA[
+      AmbientTalk language support
+    ]]></description>
+
+  <change-notes><![CDATA[
+      <h3>Version 1</h3>
+   <ul>
+      <li>REPL functionality</li>
+      <li>Run configuration set-up</li>
+      <li>Basic syntax highlighting</li>
+   </ul>
+    ]]>
+  </change-notes>
+
+  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
+  <idea-version since-build="141.0"/>
+
+  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
+       on how to target different products -->
+  <!-- uncomment to enable plugin in all products
+  <depends>com.intellij.modules.lang</depends>
+  -->
+
+  <extensions defaultExtensionNs="com.intellij">
+    <fileTypeFactory implementation="edu.vub.ideAT.ATFileTypeFactory"/>
+    <configurationType implementation="edu.vub.ideAT.configuration.ATRunConfigurationType"/>
+    <runConfigurationProducer implementation="edu.vub.ideAT.configuration.ATRunConfigurationProducer"/>
+    <programRunner implementation="edu.vub.ideAT.configuration.ATRunner"/>
+    <moduleBuilder builderClass="edu.vub.ideAT.project.ATModuleWizardStep" id="AT_STEP" order="first"/>
+    <toolWindow id="edu.vub.ideAT.REPL.ATREPLFactory.REPL_TOOL_ID" icon="/edu/vub/ideAT/ui/atIcon.png" anchor="bottom" conditionClass="edu.vub.ideAT.REPL.ATREPLCondition"/>
+    <lang.syntaxHighlighterFactory key="AmbientTalk"  implementationClass="edu.vub.ideAT.highlighting.ATHighlightingFactory"/>
+    <colorSettingsPage implementation="edu.vub.ideAT.highlighting.ATColorSettingsPage"/>
+  </extensions>
+
+  <actions>
+
+  </actions>
+
+</idea-plugin>

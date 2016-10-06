@@ -1,0 +1,302 @@
+/**
+ * AmbientTalk/2 Project
+ * (c) Software Languages Lab, 2006 - 2011
+ * Authors: Soft Ambient Group
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * @author eline.philips
+ */
+
+
+def initModule := lobby.frameworks.workflow.WFinit;
+def dictionaryModule := lobby.frameworks.workflow.dictionary;
+import initModule;
+import dictionaryModule;
+import /.at.lang.values;
+import /.at.lang.futures;
+
+
+/**
+* Activity object representing an activity in a workflow.
+*/
+def Activity := object: {
+
+	// Create an asynchronous message.
+    def createAsyncMsg(selector, args) {
+        reflectOnActor().createMessage(selector, args, [FutureMessage]);
+    };
+    
+    // Invocation of a service.
+	def invokeService(service, activity, env) {
+		def [result, resolver] := makeFuture();
+		def arguments := activity.parameters;
+		def output := activity.output;  
+		def msg := createAsyncMsg(activity.selector, env.bind(arguments));
+		when: service <+ msg becomes: { |reply|
+			if: (is: reply taggedAs: Table) then: {
+           		// Insert the new variable bindings in the environment.
+               	def idx := 1;
+               	reply.each: { |val| env.insert(output[idx].variable, val); idx := idx + 1; }; 
+           	};
+           	resolver.resolve(env);
+        };
+        result;
+	};
+};
+
+
+/**
+* A service activity object.
+*/
+def ServiceActivity := object: {
+    def service;			// a ServiceWrapper
+    def selector;			// the method name
+    def parameters;			// the formal parameters 
+    def output;				// the names to which the output values of the invocation should be bound
+    def futures := Dictionary.new();
+    def services := Dictionary.new();
+    def observers := [];
+    
+    def init(sw, sel, pars, outputVars) {  
+        service    := sw;
+        selector   := sel;
+        parameters := pars;
+        output     := outputVars;
+    };  
+    
+    def cancel(env) {
+    	def future := futures.find(env.id);
+        if: ! (future == nil) then: {
+        	def resolver := future[2];
+        	resolver.ruin(/.at.lang.types.Exception);
+        };
+    };
+    
+    def start(env) {
+    	def [result, resolver] := makeFuture();
+    	futures.insert(env.id, [result, resolver]);   
+    	observers.each: { |o| o.informStartTime(env.getId, /.at.support.timer.now()); };
+    	execute(env, resolver);
+    	result;
+    };
+    	
+    
+    def execute(env, resolver) {      
+    	when: service.tag discovered: { |s|
+    		services.insert(env.id, s);
+    		when: Activity^invokeService(s, self, env)  becomes: { |nEnv|
+    			resolver.resolve(nEnv);
+    		};
+    	};
+    };
+      
+    def retry(env) {
+    	def [result, resolver] := futures.find(env.id);
+    	def service := services.find(env.id);
+    	if: ! (service == nil) then: {
+    	when: Activity^invokeService(service, self, env) becomes: { |nEnv|
+         		resolver.resolve(nEnv);
+        	};
+        }; //TODO else error
+		result;
+    };
+    
+    def restart(env) {
+    	def [result, resolver] := futures.find(env.id);
+    	execute(env, resolver);
+    	result;
+    };
+    
+    def skip(env) {
+    	def [result, resolver] := futures.find(env.id);
+    	def groupVarName := env.group.varName;
+       	if: ! (groupVarName == nil) then: { env.delete(varName);  };
+    	resolver.resolve(env);
+    };
+    
+    def drop(env) {
+    	env.group.drop(env);
+    	cancel(env);
+    };
+    
+     def addObserver(obs) {
+       	observers := observers + [obs];
+     };
+};
+
+
+
+def Output := extend: lobby.at.lang.values.createTypeTag(`Output) with: {
+    def outputArgs;
+    def apply(args) { self.new(args) };
+    def init(args) { outputArgs := args; };
+} taggedAs: [OutputTag];
+    
+    
+
+def createServiceMirror(baseObject) { 
+    extend: defaultMirror.new(baseObject) with: {
+        def invoke(rcv, inv) {
+            if: (self.respondsTo(inv.selector)) then: { 
+                super.invoke(rcv, inv) 
+            } else: {
+                if: (is: inv taggedAs: Trigger) then: { 
+                    TriggerPattern.new(baseObject, inv.selector, inv.arguments) 
+                } else: {
+                    if: (is: inv taggedAs: Output) then: {
+                        def theMethodTags := (tagsOf: inv);
+                        def theOutputTag  := theMethodTags.at(theMethodTags.find: { | aTag | is: aTag taggedAs: OutputTag });
+                        ServiceActivity.new(baseObject, inv.selector, inv.arguments, theOutputTag.outputArgs)
+                    } else: { 
+                        ServiceActivity.new(baseObject, inv.selector, inv.arguments, []) 
+                    }
+                }
+            }
+        }
+    };
+};
+
+
+
+def makeServiceWrapper(aTag) {
+    object: {
+        def tag() { aTag };
+
+    } mirroredBy: {|emptyBase| createServiceMirror(emptyBase)}
+};
+
+
+// TODO NotFound failure
+def VariableActivity := object: {
+    def variableName;
+    def selector;
+    def parameters;
+    def output;
+    def futures := Dictionary.new();
+    def services := Dictionary.new();
+    def observers := [];
+    
+    def init(var, sel, pars, outputVars) {  
+        variableName   := var;
+        selector       := sel;
+        parameters     := pars;
+        output         := outputVars;
+    };  
+    
+    // Execute a VarActivity (activity execute by a service that is bound to a variable name in the environment).
+    def start(env) {
+    	def [result, resolver] := makeFuture();
+    	futures.insert(env.id, [result, resolver]);
+		// We look up the service in the environment and invoke that service.
+    	def service := env.find(variableName);
+    	services.insert(env.id, service);
+    	observers.each: { |o| o.informStartTime(env.getId, /.at.support.timer.now()); };
+    	when: Activity^invokeService(service, self, env)  becomes: { |nEnv|
+    		resolver.resolve(nEnv);
+    	};
+    	result;
+    };
+    
+    def cancel(env) {
+    	def future := futures.find(env.id);
+        if: ! (future == nil) then: {
+        	def resolver := future[2];
+        	resolver.ruin(/.at.lang.types.Exception);
+        };
+    };
+    
+    def retry(env) {
+    	def [result, resolver] := futures.find(env.id);
+    	def service := services.find(env.id);
+    	if: ! (service == nil) then: {
+    		when: Activity^invokeService(service, self, env) becomes: { |nEnv|
+         		resolver.resolve(nEnv);
+        	};
+        }; //TODO else error
+		result;
+    };
+    
+    def restart(env) {
+    	def [result, resolver] := futures.find(env.id);
+    	execute(env, resolver);
+    	result;
+    };
+    
+     def addObserver(obs) {
+    	observers := observers + [obs];
+	};
+};
+
+
+def createVariableWrapper(selector) {
+    
+    object: {
+        def variable := selector;
+    
+    } taggedAs: [Variable] mirroredBy: {|emptyBase| 
+        extend: defaultMirror.new(emptyBase) with: {
+            def invoke(rcv, inv) {
+                if: (self.respondsTo(inv.selector)) then: { 
+                    super.invoke(rcv, sel); 
+                } else: {
+                    if: (is: inv taggedAs: Trigger) then: { 
+                        system.println("Triggers are not supported for VariableWrappers") 
+                    } else: {
+                        if: (is: inv taggedAs: Output) then: {
+                            def theMethodTags := (tagsOf: inv);
+                            def theOutputTag  := theMethodTags.at(theMethodTags.find: { | aTag | is: aTag taggedAs: OutputTag });
+                            VariableActivity.new(emptyBase.variable, inv.selector, inv.arguments, theOutputTag.outputArgs)
+                        } else: { 
+                            VariableActivity.new(emptyBase.variable, inv.selector, inv.arguments, []) 
+                        }
+                    }   
+                }
+            }
+        };
+    }; 
+};
+
+
+
+def Env := object: {
+
+    } mirroredBy: {|emptyBase| 
+        extend: defaultMirror.new(emptyBase) with: {
+            def invokeField(rcv, sel) {
+                if: (self.respondsTo(sel)) then: { 
+                    super.invokeField(rcv, sel) 
+                } else: {
+                    createVariableWrapper(sel);
+                }
+        }
+    };
+};
+
+
+
+def ActivityModule := object: {
+    def makeServiceWrapper := &makeServiceWrapper;
+    def Env := Env;
+    def Output := Output;
+    def defService(type) { makeServiceWrapper(createTypeTag(type)); };
+};
