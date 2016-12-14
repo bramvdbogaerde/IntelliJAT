@@ -1,9 +1,7 @@
 package edu.vub.ideAT.configuration;
 
-import com.intellij.execution.configurations.ConfigurationFactory;
-import com.intellij.execution.configurations.ConfigurationType;
-import com.intellij.execution.configurations.ConfigurationTypeBase;
-import com.intellij.execution.configurations.ConfigurationTypeUtil;
+import com.intellij.execution.configurations.*;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.IconLoader;
 import com.sun.istack.internal.NotNull;
 import edu.vub.ideAT.ATIcons;

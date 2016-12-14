@@ -11,15 +11,20 @@ import com.intellij.openapi.util.Key;
  * Created by flo on 26/08/16.
  */
 public class ATRunConfigurationFactory extends ConfigurationFactory {
-    private static final String FACTORY_NAME = "AmbientTalk configuration factory";
+    private static final String FACTORY_NAME = "AmbientTalk";
 
     protected ATRunConfigurationFactory(ConfigurationType type){
         super(type);
     }
 
     @Override
-    public RunConfiguration createTemplateConfiguration(Project project){
+    public ATRunConfiguration createTemplateConfiguration(Project project){
         return new ATRunConfiguration(project,this,"AmbientTalk");
+    }
+
+    @Override
+    public RunConfiguration createConfiguration(String name,RunConfiguration template){
+        return super.createConfiguration(name,template);
     }
 
     @Override

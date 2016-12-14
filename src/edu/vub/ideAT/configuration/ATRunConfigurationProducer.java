@@ -59,6 +59,9 @@ public class ATRunConfigurationProducer extends RunConfigurationProducer<ATRunCo
         }
 
         configuration.setScriptATLibPath(ATConfigDefaults.getDefaultATLibPath());
+        configuration.setScriptATJarPath(ATConfigDefaults.getDefaultATJarPath());
+        configuration.setScriptATInitPath(ATConfigDefaults.generateATInitPath(ATConfigDefaults.getDefaultATLibPath()));
+        configuration.setScriptATHomePath(ATConfigDefaults.getDefaultATJarPath());
         configuration.setScriptATCommandLineArgs(ATConfigDefaults.getDefaultATCommandLineArgs());
 
         return true;
@@ -70,9 +73,7 @@ public class ATRunConfigurationProducer extends RunConfigurationProducer<ATRunCo
         if (location == null) {
             return false;
         }
-
         VirtualFile file = location.getVirtualFile();
-
         return file != null && FileUtil.pathsEqual(file.getPath(), configuration.getScriptName());
     }
 

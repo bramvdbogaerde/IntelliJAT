@@ -24,15 +24,33 @@ import java.util.jar.JarFile;
  */
 public class ATConfigDefaults {
 
+    public static boolean inProduction(){
+        String classPath = PathUtil.getJarPathForClass(ATConfigDefaults.class);
+        return classPath.endsWith(".jar");
+    }
+
+    public static String getDefaultATJarPath(){
+        if(ATConfigDefaults.inProduction()){
+            String classPath = PathUtil.getJarPathForClass(ATConfigDefaults.class);
+            VirtualFile jarRoot = JarFileSystem.getInstance().getJarRootForLocalFile(LocalFileSystem.getInstance().findFileByPath(classPath));
+            String jarPath = jarRoot.getPath().replace("!","");
+            return jarPath.replace("/ideAT.jar","");
+        }
+        else{
+            return ATConfigDefaults.class.getClassLoader().getResource("ambienttalk2.jar").getPath().replace("ambienttalk2.jar","");
+        }
+    }
+
     public static String getDefaultATLibPath(){
         String classPath = PathUtil.getJarPathForClass(ATConfigDefaults.class);
-        if(classPath.endsWith(".jar")){
+        if(ATConfigDefaults.inProduction()){
             //Plugin is running in production mode, might need to extract at lib from plugin jar
             VirtualFile jarRoot = JarFileSystem.getInstance().getJarRootForLocalFile(LocalFileSystem.getInstance().findFileByPath(classPath));
             String jarPath = jarRoot.getPath().replace("!","");
             String libPath = jarPath.replace("/ideAT.jar","");
             String atLibPath = libPath + "atlib";
             final File jarFile = new File(jarPath);
+//            Notifications.Bus.notify(new Notification("AT Test", "Success", "Checking File System",NotificationType.INFORMATION));
             if(Files.notExists(Paths.get(atLibPath))){
                 final JarFile jar;
                 try {

@@ -15,22 +15,29 @@ import javax.swing.*;
  */
 public class ATSettingsEditor extends SettingsEditor<ATRunConfiguration> {
     private ATRunConfigurationForm form;
-    private Project project;
+    ATRunConfiguration config;
 
-    public ATSettingsEditor(Project project){
-        this.project = project;
-        form = new ATRunConfigurationForm(project);
+    public ATSettingsEditor(ATRunConfiguration config){
+        this.config = config;
+        form = new ATRunConfigurationForm(config);
     }
 
     @Override
     protected void resetEditorFrom(ATRunConfiguration atRunConfiguration){
-        System.out.println("Scrip path in reset: " + atRunConfiguration.getScriptPath());
         form.setScriptPath(atRunConfiguration.getScriptPath());
-        form.setScriptProject(project);
+        form.setScriptProject(atRunConfiguration.getScriptProject());
         if(!(atRunConfiguration.getScriptATLibPath().equals(ATConfigDefaults.getDefaultATLibPath()))){
             form.setScriptOtherATLibPath(atRunConfiguration.getScriptATLibPath());
         }
-        form.setIATCommandLineArgs(atRunConfiguration.getScriptATCommandLineArgs());
+        if(!(atRunConfiguration.getScriptATCommandLineArgs().equals(ATConfigDefaults.getDefaultATCommandLineArgs()))){
+            form.setIATCommandLineArgs(atRunConfiguration.getScriptATCommandLineArgs());
+        }
+        if(!(atRunConfiguration.getScriptATHomePath().equals(ATConfigDefaults.getDefaultATJarPath()))){
+            form.setScriptOtherATHomePath(atRunConfiguration.getScriptATHomePath());
+        }
+        if(!(atRunConfiguration.getScriptATInitPath().equals(ATConfigDefaults.generateATInitPath(ATConfigDefaults.getDefaultATLibPath())))){
+            form.setScriptOtherATInitPath(atRunConfiguration.getScriptATInitPath());
+        }
     }
 
     @Override
@@ -38,6 +45,12 @@ public class ATSettingsEditor extends SettingsEditor<ATRunConfiguration> {
         atRunConfiguration.setScriptPath(form.getScriptPath());
         if(form.isOtherATLibPath()){
             atRunConfiguration.setScriptATLibPath(form.getOtherATLibPath());
+        }
+        if(form.isOtherATHomePath()){
+            atRunConfiguration.setScriptATHomePath(form.getOtherATHomePath());
+        }
+        if(form.isOtherATInitPath()){
+            atRunConfiguration.setScriptATInitPath(form.getOtherATInitPath());
         }
         atRunConfiguration.setScriptATCommandLineArgs(form.getIATCommandLineArgs());
     }

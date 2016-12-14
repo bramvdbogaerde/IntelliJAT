@@ -22,11 +22,19 @@ public class ATRunConfiguration extends LocatableConfigurationBase {
     private String scriptPath;
     private Project scriptProject;
     private String scriptATLibPath;
+    private String scriptATJarPath;
+    private String scriptATInitPath;
+    private String scriptATHomePath;
     private String scriptATCommandLineArgs;
 
     protected ATRunConfiguration(Project project, ConfigurationFactory factory, String name){
         super(project,factory,name);
         scriptProject = project;
+        scriptATLibPath = ATConfigDefaults.getDefaultATLibPath();
+        scriptATJarPath = ATConfigDefaults.getDefaultATJarPath();
+        scriptATCommandLineArgs = ATConfigDefaults.getDefaultATCommandLineArgs();
+        scriptATInitPath = ATConfigDefaults.generateATInitPath(scriptATLibPath);
+        scriptATHomePath = scriptATJarPath;
     }
 
     public String getScriptName(){return scriptName;}
@@ -45,6 +53,18 @@ public class ATRunConfiguration extends LocatableConfigurationBase {
 
     public void setScriptATLibPath(String ATLibPath){scriptATLibPath = ATLibPath;}
 
+    public String getScriptATJarPath(){return scriptATJarPath;}
+
+    public void setScriptATJarPath(@NotNull String ATJarPath){scriptATJarPath = ATJarPath;}
+
+    public String getScriptATInitPath(){return scriptATInitPath;}
+
+    public void setScriptATInitPath(String path){scriptATInitPath = path;}
+
+    public String getScriptATHomePath(){return scriptATHomePath;}
+
+    public void setScriptATHomePath(String path){scriptATHomePath = path;}
+
     public String getScriptATCommandLineArgs(){return scriptATCommandLineArgs;}
 
     public void setScriptATCommandLineArgs(String ATCommandLineArgs){scriptATCommandLineArgs = ATCommandLineArgs;}
@@ -53,17 +73,19 @@ public class ATRunConfiguration extends LocatableConfigurationBase {
     @NotNull
     @Override
     public SettingsEditor<ATRunConfiguration> getConfigurationEditor(){
-        return new ATSettingsEditor(scriptProject);
+        return new ATSettingsEditor(this);
     }
 
     @Override
     public void checkConfiguration() throws RuntimeConfigurationException {
-        //TODO
+        if(scriptATJarPath == null || scriptATLibPath == null){
+            throw new RuntimeConfigurationError("Invalid run configuration");
+        }
     }
 
     @Nullable
     @Override
-    public RunProfileState getState(@NotNull Executor executor, @NotNull ExecutionEnvironment executionEnvironment) throws ExecutionException{
+    public CommandLineState getState(@NotNull Executor executor, @NotNull ExecutionEnvironment executionEnvironment) throws ExecutionException{
         return new ATRunnerState(this,executionEnvironment);
     }
 
@@ -75,6 +97,9 @@ public class ATRunConfiguration extends LocatableConfigurationBase {
         scriptPath = JDOMExternalizerUtil.readField(element,"SCRIPT_PATH");
         scriptATLibPath = JDOMExternalizerUtil.readField(element,"SCRIPT_ATLIB_PATH");
         scriptATCommandLineArgs = JDOMExternalizerUtil.readField(element,"SCRIPT_AT_ARGS");
+        scriptATJarPath = JDOMExternalizerUtil.readField(element,"SCRIPT_JAR");
+        scriptATInitPath = JDOMExternalizerUtil.readField(element,"SCRIPT_INIT");
+        scriptATHomePath = JDOMExternalizerUtil.readField(element,"SCRIPT_HOME");
     }
 
     @Override
@@ -84,6 +109,9 @@ public class ATRunConfiguration extends LocatableConfigurationBase {
         JDOMExternalizerUtil.writeField(element,"SCRIPT_PATH",scriptPath);
         JDOMExternalizerUtil.writeField(element,"SCRIPT_ATLIB_PATH",scriptATLibPath);
         JDOMExternalizerUtil.writeField(element,"SCRIPT_AT_ARGS",scriptATCommandLineArgs);
+        JDOMExternalizerUtil.writeField(element,"SCRIPT_JAR",scriptATJarPath);
+        JDOMExternalizerUtil.writeField(element,"SCRIPT_INIT",scriptATInitPath);
+        JDOMExternalizerUtil.writeField(element,"SCRIPT_HOME",scriptATHomePath);
         PathMacroManager.getInstance(getProject()).collapsePathsRecursively(element);
     }
 

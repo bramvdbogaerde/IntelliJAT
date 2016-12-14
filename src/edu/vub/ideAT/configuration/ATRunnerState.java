@@ -1,75 +1,85 @@
 package edu.vub.ideAT.configuration;
 
 import com.intellij.execution.ExecutionException;
-import com.intellij.execution.ExecutionResult;
 import com.intellij.execution.Executor;
-import com.intellij.execution.configurations.RunProfileState;
+import com.intellij.execution.configurations.CommandLineState;
+import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.execution.filters.TextConsoleBuilder;
+import com.intellij.execution.filters.TextConsoleBuilderFactory;
+import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionEnvironment;
-import com.intellij.execution.runners.ProgramRunner;
-import com.intellij.openapi.util.IconLoader;
-import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ToolWindowAnchor;
-import com.intellij.openapi.wm.ToolWindowManager;
-import edu.vub.at.exceptions.InterpreterException;
-import edu.vub.ideAT.ui.ATREPL;
-import edu.vub.ideAT.REPL.ATREPLFactory;
-import edu.vub.ideAT.REPL.ConsoleIATIO;
-import edu.vub.ideAT.REPL.IntelliJIAT;
+import com.intellij.execution.ui.ConsoleView;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 
 /**
- * Created by flo on 29/08/16.
+ * Created by flo on 13/12/2016.
  */
-public class ATRunnerState implements RunProfileState {
+public class ATRunnerState extends CommandLineState {
     private ATRunConfiguration config;
 
-    public ATRunnerState(ATRunConfiguration config, ExecutionEnvironment environment){
+    protected ATRunnerState(ATRunConfiguration config, ExecutionEnvironment environment) {
+        super(environment);
         this.config = config;
     }
 
-    @Nullable
+    @NotNull
     @Override
-    public ExecutionResult execute(Executor executor, @NotNull ProgramRunner programRunner) throws ExecutionException {
-        ToolWindowManager manager = ToolWindowManager.getInstance(config.getScriptProject());
-        ToolWindow toolWindow = manager.getToolWindow(ATREPLFactory.REPL_TOOL_ID);
-        if(toolWindow == null){
-            toolWindow = manager.registerToolWindow(ATREPLFactory.REPL_TOOL_ID,true, ToolWindowAnchor.BOTTOM);
-        }
-        toolWindow.setIcon(IconLoader.getIcon("/edu/vub/ideAT/ui/atIcon.png"));
-        toolWindow.setTitle(config.getScriptName());
-        ATREPL repl = ATREPLFactory.newREPL(config.getScriptName(),config.getScriptPath(),toolWindow,this);
-        startATREPL(repl);
-        return null;
+    protected ProcessHandler startProcess() throws ExecutionException {
+        GeneralCommandLine commandLine = getCommand();
+        return new ATProcessHandler(commandLine.createProcess(), commandLine.getCommandLineString());
     }
 
-    public void startATREPL(ATREPL repl){
-        ConsoleIATIO console = new ConsoleIATIO(repl);
-        System.setProperty("AT_INIT",ATConfigDefaults.generateATInitPath(config.getScriptATLibPath()));
-        System.setProperty("AT_LIBPATH",ATConfigDefaults.generateATLibsPath(config.getScriptATLibPath()));
-        ArrayList<String> args = new ArrayList<String>();
-        Iterator<String> it = getCommandLineArgs().iterator();
-        while(it.hasNext()){
-            String arg = it.next();
-            System.out.println("Adding arg: " + arg);
-            args.add(arg);
-        }
-        args.add(config.getScriptPath());
-        String[] argsArray = args.toArray(new String[0]);
-        try {
-            IntelliJIAT interpreter = new IntelliJIAT(argsArray,console);
-            repl.setIntelliJIAT(interpreter);
-        } catch (InterpreterException e) {
-            e.printStackTrace();
-        }
+    private GeneralCommandLine getCommand() throws ExecutionException {
+        GeneralCommandLine commandLine = new GeneralCommandLine();
+        setExePath(commandLine);
+        setWorkDirectory(commandLine);
+        setAtHome(commandLine);
+        setATInit(commandLine);
+        setATLibs(commandLine);
+        setATJar(commandLine);
+        setATArgs(commandLine);
+        setATScript(commandLine);
+        TextConsoleBuilder consoleBuilder = TextConsoleBuilderFactory.getInstance().createBuilder(config.getScriptProject());
+        setConsoleBuilder(consoleBuilder);
+        return commandLine;
     }
 
-    private ArrayList<String> getCommandLineArgs(){
-        return new ArrayList<String>(Arrays.asList(config.getScriptATCommandLineArgs().split("(?=-)")));
+    public void setExePath(GeneralCommandLine commandLine) throws ExecutionException {
+        commandLine.setExePath("java");
     }
 
+    public void setWorkDirectory(GeneralCommandLine commandLine){
+        commandLine.withWorkDirectory(config.getScriptATJarPath());
+    }
+
+    public void setAtHome(GeneralCommandLine commandLine){
+        commandLine.withParameters("-DAT_HOME=" + config.getScriptATHomePath());
+    }
+
+    public void setATInit(GeneralCommandLine commandLine){
+        commandLine.withParameters("-DAT_INIT=" + config.getScriptATInitPath());
+    }
+
+    public void setATLibs(GeneralCommandLine commandLine){
+        String libPath = config.getScriptATLibPath();
+        commandLine.withParameters("-DAT_LIBPATH="+ATConfigDefaults.generateATLibsPath(libPath));
+    }
+
+    public void setATJar(GeneralCommandLine commandLine){
+        commandLine.withParameters("-cp","./ambienttalk2.jar:./*","edu.vub.at.IAT");
+    }
+
+    public void setATArgs(GeneralCommandLine commandLine){
+        commandLine.withParameters(config.getScriptATCommandLineArgs());
+    }
+
+    public void setATScript(GeneralCommandLine commandLine){
+        commandLine.withParameters(config.getScriptPath());
+    }
+
+    @NotNull
+    public ConsoleView createConsoleView(Executor executor) {
+        TextConsoleBuilder consoleBuilder = TextConsoleBuilderFactory.getInstance().createBuilder(config.getScriptProject());
+        return consoleBuilder.getConsole();
+    }
 }
