@@ -1,5 +1,6 @@
 package edu.vub.ideAT.project;
 
+import com.intellij.ide.util.projectWizard.JavaModuleBuilder;
 import com.intellij.ide.util.projectWizard.ModuleBuilder;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
@@ -14,27 +15,13 @@ import javax.swing.*;
 /**
  * Created by flo on 29/08/16.
  */
-public class ATModuleWizardStep extends ModuleBuilder {
+public class ATModuleWizardStep extends JavaModuleBuilder {
     public void setupRootModel(ModifiableRootModel modifiableRootModel) throws ConfigurationException {
-
+        super.setupRootModel(modifiableRootModel);
     }
 
     public ModuleType getModuleType() {
         return ATModuleType.getInstance();
     }
 
-    @Override
-    public ModuleWizardStep[] createWizardSteps(@NotNull WizardContext wizardContext, @NotNull ModulesProvider modulesProvider) {
-        return new ModuleWizardStep[]{new ModuleWizardStep() {
-            @Override
-            public JComponent getComponent() {
-                return new JLabel("Put your content here");
-            }
-
-            @Override
-            public void updateDataModel() {
-
-            }
-        }};
-    }
 }

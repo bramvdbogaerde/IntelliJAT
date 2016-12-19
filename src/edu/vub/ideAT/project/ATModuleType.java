@@ -7,6 +7,7 @@ import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.module.ModuleTypeManager;
 import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import com.intellij.openapi.util.IconLoader;
+import edu.vub.ideAT.ATIcons;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -34,13 +35,13 @@ public class ATModuleType extends ModuleType<ATModuleWizardStep> {
     @NotNull
     @Override
     public String getName() {
-        return "AmbientTalk Module Type";
+        return "AmbientTalk";
     }
 
     @NotNull
     @Override
     public String getDescription() {
-        return "AmbientTalk Module Type";
+        return "AmbientTalk Project";
     }
 
     @Override
@@ -50,7 +51,7 @@ public class ATModuleType extends ModuleType<ATModuleWizardStep> {
 
     @Override
     public Icon getNodeIcon(@Deprecated boolean b) {
-        return AllIcons.General.Information;
+        return ATIcons.ATIcon;
     }
 
     @NotNull

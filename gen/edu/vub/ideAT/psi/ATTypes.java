@@ -25,6 +25,7 @@ public interface ATTypes {
   IElementType CATCH_KEY = new ATTokenType("catch:");
   IElementType CHILDOF_KEY = new ATTokenType("childOf:");
   IElementType COL_OP = new ATTokenType(":");
+  IElementType COMMENT = new ATTokenType("");
   IElementType DEFTYPE_KEY = new ATTokenType("deftype");
   IElementType DEF_KEY = new ATTokenType("def");
   IElementType DISCONNECTED_KEY = new ATTokenType("disconnected:");

@@ -1,4 +1,4 @@
-package edu.vub.ideAT.configuration;
+package edu.vub.ideAT.runner;
 
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.Executor;
@@ -9,6 +9,7 @@ import com.intellij.execution.runners.DefaultProgramRunner;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.openapi.project.Project;
+import edu.vub.ideAT.configuration.ATRunConfiguration;
 import org.jetbrains.annotations.NotNull;
 
 /**

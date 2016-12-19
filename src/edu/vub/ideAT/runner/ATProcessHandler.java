@@ -1,4 +1,4 @@
-package edu.vub.ideAT.configuration;
+package edu.vub.ideAT.runner;
 
 import com.intellij.execution.process.ColoredProcessHandler;
 import com.intellij.notification.Notification;

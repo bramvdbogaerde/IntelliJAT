@@ -72,7 +72,7 @@ public class ATParser implements PsiParser, LightPsiParser {
   }
 
   /* ********************************************************** */
-  // keyword | operator | constant
+  // keyword | operator | constant | COMMENT
   public static boolean expression(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "expression")) return false;
     boolean r;
@@ -80,12 +80,13 @@ public class ATParser implements PsiParser, LightPsiParser {
     r = keyword(b, l + 1);
     if (!r) r = operator(b, l + 1);
     if (!r) r = constant(b, l + 1);
+    if (!r) r = consumeToken(b, COMMENT);
     exit_section_(b, l, m, r, false, null);
     return r;
   }
 
   /* ********************************************************** */
-  // "def" | "deftype" | "if:" | "then:" | "else:" | "each:" | "while:" | "do:" | "unless:" | "foreach:" | "in:" | "raise:" | "try:" | "catch:" | "using:" | "finally:" | "usingHandlers:" | "object:" | "isolate:" | "new" | "extend:" | "with:" | "is:" | "taggedAs:" | "childOf:" | "extends:" | "tagsOf:" | "self" | "super" | "import" | "exclude" | "alias" | "mirror" | "mirroredBy:" | "becomeMirroredBy:" | "reflect:" | "reflectOnActor" | "print:" | "eval:" | "read:" | "actor:" | "whenever:" | "discovered:" | "disconnected:" | "reconnected:" | "takenOffline:" | "when:" | "becomes:" | "retract:" | "takeOffline:" | "export:" | "as:" | "<-" | "<:" | "<+"
+  // "def" | "deftype" | "if:" | "then:" | "else:" | "each:" | "while:" | "do:" | "unless:" | "foreach:" | "in:" | "raise:" | "try:" | "catch:" | "using:" | "finally:" | "usingHandlers:" | "object:" | "isolate:" | "new" | "extend:" | "with:" | "is:" | "taggedAs:" | "childOf:" | "extends:" | "tagsOf:" | "self" | "super" | "import" | "exclude" | "alias" | "mirror:" | "mirroredBy:" | "becomeMirroredBy:" | "reflect:" | "reflectOnActor" | "print:" | "eval:" | "read:" | "actor:" | "whenever:" | "discovered:" | "disconnected:" | "reconnected:" | "takenOffline:" | "when:" | "becomes:" | "retract:" | "takeOffline:" | "export:" | "as:" | "<-" | "<:" | "<+"
   public static boolean keyword(PsiBuilder b, int l) {
     if (!recursion_guard_(b, l, "keyword")) return false;
     boolean r;
@@ -122,7 +123,7 @@ public class ATParser implements PsiParser, LightPsiParser {
     if (!r) r = consumeToken(b, IMPORT_KEY);
     if (!r) r = consumeToken(b, EXCLUDE_KEY);
     if (!r) r = consumeToken(b, ALIAS_KEY);
-    if (!r) r = consumeToken(b, "mirror");
+    if (!r) r = consumeToken(b, MIRROR_KEY);
     if (!r) r = consumeToken(b, MIRROREDBY_KEY);
     if (!r) r = consumeToken(b, BECOMEMIRROREDBY_KEY);
     if (!r) r = consumeToken(b, REFLECT_KEY);

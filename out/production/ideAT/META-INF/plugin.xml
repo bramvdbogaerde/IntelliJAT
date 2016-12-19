@@ -29,16 +29,27 @@
   <!-- <moduleBuilder builderClass="edu.vub.ideAT.project.ATModuleWizardStep" id="AT_STEP" order="first"/> -->
 
   <extensions defaultExtensionNs="com.intellij">
+      <moduleType id="AT_MODULE_TYPE" implementationClass="edu.vub.ideAT.project.ATModuleType"/>
     <fileTypeFactory implementation="edu.vub.ideAT.ATFileTypeFactory"/>
     <configurationType implementation="edu.vub.ideAT.configuration.ATRunConfigurationType"/>
     <runConfigurationProducer implementation="edu.vub.ideAT.configuration.ATRunConfigurationProducer"/>
-    <programRunner implementation="edu.vub.ideAT.configuration.ATRunner"/>
-    <toolWindow id="edu.vub.ideAT.REPL.ATREPLFactory.REPL_TOOL_ID" icon="/edu/vub/ideAT/ui/atIcon.png" anchor="bottom" conditionClass="edu.vub.ideAT.REPL.ATREPLCondition"/>
+    <programRunner implementation="edu.vub.ideAT.runner.ATRunner"/>
     <lang.syntaxHighlighterFactory key="AmbientTalk"  implementationClass="edu.vub.ideAT.highlighting.ATHighlightingFactory"/>
     <colorSettingsPage implementation="edu.vub.ideAT.highlighting.ATColorSettingsPage"/>
   </extensions>
 
   <actions>
+      <action id="ATIde.CommentAction" class="edu.vub.ideAT.actions.CommentAction" text="Comment" description="Comment selected lines">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      </action>
+      <action id="ATIde.UnCommentAction" class="edu.vub.ideAT.actions.UnCommentAction" text="Uncomment" description="Uncomment selected lines">
+          <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      </action>
+      <group id="RunOnGroup" text="Run snippet on" popup="true">
+          <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+          <action id="ATIde.RunSnippetOnNewAction" class="edu.vub.ideAT.actions.RunSnippetOnNew" text="Run Snippet On New" description="Run selected ambienttalk code on new REPL">
+          </action>
+      </group>
 
   </actions>
 

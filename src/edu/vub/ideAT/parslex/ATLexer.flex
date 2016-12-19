@@ -20,6 +20,7 @@ import com.intellij.psi.TokenType;
 
 WHITE_SPACE=[\ \t\f]
 Identifier = [A-Za-z_][A-Za-z_0-9]*
+Comment = "//" [^\r\n]*
 
 %%
 
@@ -95,8 +96,10 @@ Identifier = [A-Za-z_][A-Za-z_0-9]*
     ":" {return COL_OP;}
     "~" {return TILD_OP;}
     "*" {return MUL_OP;}
+    {Comment} {return COMMENT;}
     {Identifier} {return TokenType.WHITE_SPACE; }
     [^((?!KEYWORD).)*$] {return TokenType.WHITE_SPACE;}
+
 
 
 }

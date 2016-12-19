@@ -6,7 +6,6 @@ import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
 import edu.vub.ideAT.configuration.ATConfigDefaults;
 import edu.vub.ideAT.configuration.ATRunConfiguration;
-import javafx.scene.control.RadioButton;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileFilter;
@@ -114,17 +113,41 @@ public class ATRunConfigurationForm {
         IATCommandLineArgs.setText(args);
     }
 
-    private void createFileChooser(JTextField toSet) {
+    private void createFolderChooser(JTextField toSet) {
         JFileChooser fc = new JFileChooser(project.getBasePath());
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fc.setAcceptAllFileFilterUsed(false);
         int ret = fc.showOpenDialog(panel1);
         if (ret == JFileChooser.APPROVE_OPTION) {
-            toSet.setText(fc.getCurrentDirectory().getAbsolutePath());
+            toSet.setText(fc.getSelectedFile().getAbsolutePath());
         }
     }
 
-    private void generateButtons(JRadioButton defaultButton, JRadioButton otherButton, JTextField defaultTextField, JTextField otherTextField, String defaultValue) {
+    private void createATFileChooser(JTextField toSet) {
+        JFileChooser fc = new JFileChooser(project.getBasePath());
+        fc.setFileFilter(new FileFilter() {
+
+            public String getDescription() {
+                return "AmbientTalk Source Files (*.at)";
+            }
+
+            public boolean accept(File f) {
+                if (f.isDirectory()) {
+                    return false;
+                } else {
+                    String filename = f.getName().toLowerCase();
+                    return filename.endsWith(".at");
+                }
+            }
+        });
+        int ret = fc.showOpenDialog(panel1);
+        if (ret == JFileChooser.APPROVE_OPTION) {
+            File f = fc.getSelectedFile();
+            toSet.setText(f.getAbsolutePath());
+        }
+    }
+
+    private void generateButtons(JRadioButton defaultButton, JRadioButton otherButton, JTextField defaultTextField, JTextField otherTextField, String defaultValue, boolean folderChooser) {
         defaultButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -140,7 +163,11 @@ public class ATRunConfigurationForm {
                 otherButton.setSelected(true);
                 defaultButton.setSelected(false);
                 defaultTextField.setText("");
-                createFileChooser(otherTextField);
+                if (folderChooser) {
+                    createFolderChooser(otherTextField);
+                } else {
+                    createATFileChooser(otherTextField);
+                }
             }
         });
     }
@@ -150,27 +177,7 @@ public class ATRunConfigurationForm {
         browseButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JFileChooser fc = new JFileChooser(project.getBasePath());
-                fc.setFileFilter(new FileFilter() {
-
-                    public String getDescription() {
-                        return "AmbientTalk Source Files (*.at)";
-                    }
-
-                    public boolean accept(File f) {
-                        if (f.isDirectory()) {
-                            return true;
-                        } else {
-                            String filename = f.getName().toLowerCase();
-                            return filename.endsWith(".at");
-                        }
-                    }
-                });
-                int ret = fc.showOpenDialog(panel1);
-                if (ret == JFileChooser.APPROVE_OPTION) {
-                    File f = fc.getSelectedFile();
-                    scriptPath.setText(f.getAbsolutePath());
-                }
+                createATFileChooser(scriptPath);
             }
         });
         defaultATLibRadioButton = new JRadioButton();
@@ -178,19 +185,19 @@ public class ATRunConfigurationForm {
         otherATLibRadioButton = new JRadioButton();
         defaultATLibPath = new JTextField(ATConfigDefaults.getDefaultATLibPath());
         otherATLibPath = new JTextField();
-        generateButtons(defaultATLibRadioButton, otherATLibRadioButton, defaultATLibPath, otherATLibPath, ATConfigDefaults.getDefaultATLibPath());
+        generateButtons(defaultATLibRadioButton, otherATLibRadioButton, defaultATLibPath, otherATLibPath, ATConfigDefaults.getDefaultATLibPath(), true);
         defaultATHomeRadioButton = new JRadioButton();
         otherATHomeRadioButton = new JRadioButton();
         defaultATHomeRadioButton.setSelected(true);
         defaultATHomePath = new JTextField(ATConfigDefaults.getDefaultATJarPath());
         otherATHomePath = new JTextField();
-        generateButtons(defaultATHomeRadioButton, otherATHomeRadioButton, defaultATHomePath, otherATHomePath, ATConfigDefaults.getDefaultATJarPath());
+        generateButtons(defaultATHomeRadioButton, otherATHomeRadioButton, defaultATHomePath, otherATHomePath, ATConfigDefaults.getDefaultATJarPath(), true);
         defaultATInitRadioButton = new JRadioButton();
         defaultATInitRadioButton.setSelected(true);
         otherATInitRadioButton = new JRadioButton();
         defaultATInitPath = new JTextField(ATConfigDefaults.generateATInitPath(ATConfigDefaults.getDefaultATLibPath()));
         otherATInitPath = new JTextField();
-        generateButtons(defaultATInitRadioButton, otherATInitRadioButton, defaultATInitPath, otherATInitPath, ATConfigDefaults.generateATInitPath(ATConfigDefaults.getDefaultATLibPath()));
+        generateButtons(defaultATInitRadioButton, otherATInitRadioButton, defaultATInitPath, otherATInitPath, ATConfigDefaults.generateATInitPath(ATConfigDefaults.getDefaultATLibPath()), false);
         IATCommandLineArgs = new JTextField(ATConfigDefaults.getDefaultATCommandLineArgs());
     }
 

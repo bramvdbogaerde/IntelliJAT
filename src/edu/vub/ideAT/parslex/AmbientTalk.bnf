@@ -84,12 +84,13 @@
     COL_OP                  = ':'
     TILD_OP                 = '~'
     MUL_OP                  = '*'
+    COMMENT                 = ""
   ]
 }
 
 ATFile ::= expression*
 
-expression ::= keyword | operator | constant
+expression ::= keyword | operator | constant | COMMENT
 
 keyword ::= "def" | "deftype" | "if:" | "then:" | "else:" | "each:" | "while:" | "do:" | "unless:" | "foreach:" | "in:" | "raise:" | "try:" | "catch:" | "using:" | "finally:" | "usingHandlers:" | "object:" | "isolate:" | "new" | "extend:" | "with:" | "is:" | "taggedAs:" | "childOf:" | "extends:" | "tagsOf:" | "self" | "super" | "import" | "exclude" | "alias" | "mirror:" | "mirroredBy:" | "becomeMirroredBy:" | "reflect:" | "reflectOnActor" | "print:" | "eval:" | "read:" | "actor:" | "whenever:" | "discovered:" | "disconnected:" | "reconnected:" | "takenOffline:" | "when:" | "becomes:" | "retract:" | "takeOffline:" | "export:" | "as:" | "<-" | "<:" | "<+"
 

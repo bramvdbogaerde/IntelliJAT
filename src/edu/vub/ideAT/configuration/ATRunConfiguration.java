@@ -12,6 +12,7 @@ import com.intellij.openapi.util.JDOMExternalizerUtil;
 import com.intellij.openapi.util.WriteExternalException;
 import com.sun.istack.internal.NotNull;
 import com.sun.istack.internal.Nullable;
+import edu.vub.ideAT.runner.ATRunnerState;
 import org.jdom.Element;
 
 /**

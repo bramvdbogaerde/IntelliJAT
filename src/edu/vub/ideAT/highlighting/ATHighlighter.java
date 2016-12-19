@@ -21,9 +21,11 @@ public class ATHighlighter extends SyntaxHighlighterBase {
     public static final TextAttributesKey KEYWORD = createTextAttributesKey("KEYWORD", DefaultLanguageHighlighterColors.KEYWORD);
     public static final TextAttributesKey CONSTANT = createTextAttributesKey("CONSTANTS",DefaultLanguageHighlighterColors.CONSTANT);
     public static final TextAttributesKey OPERATOR = createTextAttributesKey("OPERATORS",DefaultLanguageHighlighterColors.OPERATION_SIGN);
+    public static final TextAttributesKey COMMENT  = createTextAttributesKey("COMMENTS",DefaultLanguageHighlighterColors.LINE_COMMENT);
     private static final TextAttributesKey[] KEYWORDS = new TextAttributesKey[]{KEYWORD};
     private static final TextAttributesKey[] CONSTANTS =  new TextAttributesKey[]{CONSTANT};
     private static final TextAttributesKey[] OPERATORS = new TextAttributesKey[]{OPERATOR};
+    private static final TextAttributesKey[] COMMENTS = new TextAttributesKey[]{COMMENT};
     private static final TextAttributesKey[] EMPTY_KEYS = new TextAttributesKey[0];
 
     @NotNull
@@ -44,9 +46,16 @@ public class ATHighlighter extends SyntaxHighlighterBase {
         else if(isOperator(iElementType)){
             return OPERATORS;
         }
+        else if(isComment(iElementType)){
+            return COMMENTS;
+        }
         else{
             return EMPTY_KEYS;
         }
+    }
+
+    private boolean isComment(IElementType token){
+        return token.equals(ATTypes.COMMENT);
     }
 
     private boolean isOperator(IElementType token){
