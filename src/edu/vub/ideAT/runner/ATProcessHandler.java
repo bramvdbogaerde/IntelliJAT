@@ -7,6 +7,9 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.util.Key;
 import org.jetbrains.annotations.NotNull;
 
+import java.net.URL;
+import java.net.URLClassLoader;
+
 /**
  * Created by flo on 13/12/2016.
  */

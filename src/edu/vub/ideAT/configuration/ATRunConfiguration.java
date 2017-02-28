@@ -32,7 +32,7 @@ public class ATRunConfiguration extends LocatableConfigurationBase {
         super(project,factory,name);
         scriptProject = project;
         scriptATLibPath = ATConfigDefaults.getDefaultATLibPath();
-        scriptATJarPath = ATConfigDefaults.getDefaultATJarPath();
+        scriptATJarPath = ATConfigDefaults.getDefaultATHomePath();
         scriptATCommandLineArgs = ATConfigDefaults.getDefaultATCommandLineArgs();
         scriptATInitPath = ATConfigDefaults.generateATInitPath(scriptATLibPath);
         scriptATHomePath = scriptATJarPath;

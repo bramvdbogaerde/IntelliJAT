@@ -29,12 +29,25 @@ public class ATConfigDefaults {
         return classPath.endsWith(".jar");
     }
 
-    public static String getDefaultATJarPath(){
+    private static String getDefaultATJarPath(){
+        String classPath = PathUtil.getJarPathForClass(ATConfigDefaults.class);
+        VirtualFile jarRoot = JarFileSystem.getInstance().getJarRootForLocalFile(LocalFileSystem.getInstance().findFileByPath(classPath));
+        return jarRoot.getPath().replace("!","");
+    }
+
+    public static String getDefaultATHomePath(){
         if(ATConfigDefaults.inProduction()){
             String classPath = PathUtil.getJarPathForClass(ATConfigDefaults.class);
             VirtualFile jarRoot = JarFileSystem.getInstance().getJarRootForLocalFile(LocalFileSystem.getInstance().findFileByPath(classPath));
             String jarPath = jarRoot.getPath().replace("!","");
-            return jarPath.replace("/ideAT.jar","");
+            //For some reason even on windows jar path is with slash instead of backslash
+            if(ATConfigDefaults.isWindows()){
+                jarPath = ATConfigDefaults.convertToWindows(jarPath);
+                return jarPath.replace("\\ideAT.jar","");
+            }
+            else{
+                return jarPath.replace("/ideAT.jar","");
+            }
         }
         else{
             return ATConfigDefaults.class.getClassLoader().getResource("ambienttalk2.jar").getPath().replace("ambienttalk2.jar","");
@@ -42,15 +55,14 @@ public class ATConfigDefaults {
     }
 
     public static String getDefaultATLibPath(){
-        String classPath = PathUtil.getJarPathForClass(ATConfigDefaults.class);
+        //String classPath = PathUtil.getJarPathForClass(ATConfigDefaults.class);
         if(ATConfigDefaults.inProduction()){
             //Plugin is running in production mode, might need to extract at lib from plugin jar
-            VirtualFile jarRoot = JarFileSystem.getInstance().getJarRootForLocalFile(LocalFileSystem.getInstance().findFileByPath(classPath));
-            String jarPath = jarRoot.getPath().replace("!","");
-            String libPath = jarPath.replace("/ideAT.jar","");
-            String atLibPath = libPath + "atlib";
+            String jarPath = getDefaultATJarPath();
+            String libPath = ATConfigDefaults.getDefaultATHomePath();
+            String atLibPath = ATConfigDefaults.getDefaultATHomePath() + File.separator+ "atlib";
             final File jarFile = new File(jarPath);
-//            Notifications.Bus.notify(new Notification("AT Test", "Success", "Checking File System",NotificationType.INFORMATION));
+            //Notifications.Bus.notify(new Notification("AT Test", "Success", "Jar Path: " + libPath,NotificationType.INFORMATION));
             if(Files.notExists(Paths.get(atLibPath))){
                 final JarFile jar;
                 try {
@@ -59,7 +71,8 @@ public class ATConfigDefaults {
                     while (entries.hasMoreElements()) {
                         JarEntry nextEntry = entries.nextElement();
                         final String name = nextEntry.getName();
-                        if (name.startsWith("atlib/") && name.endsWith(".at")) {
+                        if (name.startsWith("atlib"+File.separator)&& name.endsWith(".at")) {
+                            Notifications.Bus.notify(new Notification("AT Test", "Success", "Adding: " +name ,NotificationType.INFORMATION));
                             InputStream i = jar.getInputStream(nextEntry);
                             BufferedReader buff = new BufferedReader(new InputStreamReader(i, StandardCharsets.UTF_8));
                             ArrayList<String> lines = new ArrayList<String>();
@@ -88,17 +101,35 @@ public class ATConfigDefaults {
             return atLibPath;
         }
         else{
+            //Notifications.Bus.notify(new Notification("AT Test", "Success", "In Development mode",NotificationType.INFORMATION));
             //Plugin is running in development mode, simply get atlib from project directory
             return ATConfigDefaults.class.getClassLoader().getResource("/atlib").getPath();
         }
     }
+    private static boolean isWindows(){
+        return System.getProperty("os.name").contains("Windows");
+    }
+
+    public static String getPathSeperator(){
+        if(isWindows()){
+            return ";";
+        }
+        else{
+            return ":";
+        }
+    }
+
+    public static String convertToWindows(String path){
+        return path.replace("/","\\");
+    }
 
     public static String generateATInitPath(String libPath){
-        return libPath + "/at/init/init.at";
+        return libPath + File.separator+"at"+File.separator+"init"+ File.separator+ "init.at";
     }
 
     public static String generateATLibsPath(String libPath){
-        return "at="+libPath+"/at:"+ "applications="+libPath+"/applications:"+ "bridges="+libPath+"/bridges:"+ "frameworks="+libPath+"/frameworks:"+ "demo="+libPath+"/demo:"+ "test="+libPath+"/test:";
+        String pathSeparator = getPathSeperator();
+        return "at="+libPath+File.separator+"at"+pathSeparator+ "applications="+libPath+File.separator+"applications"+pathSeparator+ "bridges="+libPath+File.separator+"bridges"+pathSeparator+ "frameworks="+libPath+File.separator+"frameworks"+pathSeparator+ "demo="+libPath+File.separator+"demo"+pathSeparator+ "test="+libPath+File.separator+"test"+pathSeparator;
     }
 
     public static String getDefaultATCommandLineArgs(){

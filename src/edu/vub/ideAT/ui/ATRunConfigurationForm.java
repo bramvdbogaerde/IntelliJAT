@@ -189,9 +189,9 @@ public class ATRunConfigurationForm {
         defaultATHomeRadioButton = new JRadioButton();
         otherATHomeRadioButton = new JRadioButton();
         defaultATHomeRadioButton.setSelected(true);
-        defaultATHomePath = new JTextField(ATConfigDefaults.getDefaultATJarPath());
+        defaultATHomePath = new JTextField(ATConfigDefaults.getDefaultATHomePath());
         otherATHomePath = new JTextField();
-        generateButtons(defaultATHomeRadioButton, otherATHomeRadioButton, defaultATHomePath, otherATHomePath, ATConfigDefaults.getDefaultATJarPath(), true);
+        generateButtons(defaultATHomeRadioButton, otherATHomeRadioButton, defaultATHomePath, otherATHomePath, ATConfigDefaults.getDefaultATHomePath(), true);
         defaultATInitRadioButton = new JRadioButton();
         defaultATInitRadioButton.setSelected(true);
         otherATInitRadioButton = new JRadioButton();

@@ -3,14 +3,12 @@ package edu.vub.ideAT.configuration;
 import com.intellij.execution.Location;
 import com.intellij.execution.actions.ConfigurationContext;
 import com.intellij.execution.actions.RunConfigurationProducer;
-import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import edu.vub.ideAT.ATFile;
 import edu.vub.ideAT.ATFileType;
 
 /**
@@ -59,9 +57,9 @@ public class ATRunConfigurationProducer extends RunConfigurationProducer<ATRunCo
         }
 
         configuration.setScriptATLibPath(ATConfigDefaults.getDefaultATLibPath());
-        configuration.setScriptATJarPath(ATConfigDefaults.getDefaultATJarPath());
+        configuration.setScriptATJarPath(ATConfigDefaults.getDefaultATHomePath());
         configuration.setScriptATInitPath(ATConfigDefaults.generateATInitPath(ATConfigDefaults.getDefaultATLibPath()));
-        configuration.setScriptATHomePath(ATConfigDefaults.getDefaultATJarPath());
+        configuration.setScriptATHomePath(ATConfigDefaults.getDefaultATHomePath());
         configuration.setScriptATCommandLineArgs(ATConfigDefaults.getDefaultATCommandLineArgs());
 
         return true;

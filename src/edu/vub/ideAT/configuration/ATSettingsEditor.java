@@ -1,10 +1,7 @@
 package edu.vub.ideAT.configuration;
 
-import com.intellij.openapi.options.CompositeSettingsEditor;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SettingsEditor;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Disposer;
 import edu.vub.ideAT.ui.ATRunConfigurationForm;
 import org.jetbrains.annotations.NotNull;
 
@@ -32,7 +29,7 @@ public class ATSettingsEditor extends SettingsEditor<ATRunConfiguration> {
         if(!(atRunConfiguration.getScriptATCommandLineArgs().equals(ATConfigDefaults.getDefaultATCommandLineArgs()))){
             form.setIATCommandLineArgs(atRunConfiguration.getScriptATCommandLineArgs());
         }
-        if(!(atRunConfiguration.getScriptATHomePath().equals(ATConfigDefaults.getDefaultATJarPath()))){
+        if(!(atRunConfiguration.getScriptATHomePath().equals(ATConfigDefaults.getDefaultATHomePath()))){
             form.setScriptOtherATHomePath(atRunConfiguration.getScriptATHomePath());
         }
         if(!(atRunConfiguration.getScriptATInitPath().equals(ATConfigDefaults.generateATInitPath(ATConfigDefaults.getDefaultATLibPath())))){

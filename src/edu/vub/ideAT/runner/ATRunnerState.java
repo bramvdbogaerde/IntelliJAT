@@ -11,6 +11,9 @@ import edu.vub.ideAT.actions.RunSnippetFactory;
 import edu.vub.ideAT.configuration.ATRunConfiguration;
 import org.jetbrains.annotations.NotNull;
 
+import java.net.URL;
+import java.net.URLClassLoader;
+
 /**
  * Created by flo on 13/12/2016.
  */
