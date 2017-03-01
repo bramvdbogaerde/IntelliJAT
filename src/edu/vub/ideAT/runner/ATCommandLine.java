@@ -87,6 +87,7 @@ public class ATCommandLine extends GeneralCommandLine {
     }
 
     public void setATArgs(){
+        withParameters("-nojline");
         withParameters(config.getScriptATCommandLineArgs());
     }
 

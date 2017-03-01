@@ -1,7 +1,7 @@
 <idea-plugin >
   <id>edu.vub.ideAT</id>
   <name>AmbientTalk IDE</name>
-  <version>2.0.1</version>
+  <version>2.0.2</version>
   <vendor email="fmyter@vub.ac.be" url="soft.vub.ac.be">Software Languages Lab (Vrije Unversiteit Brussel)</vendor>
 
   <description><![CDATA[
@@ -23,6 +23,10 @@
     <h3>Version 2.0.1</h3>
        <ul>
           <li>Fixed bug where jlobby would not contain project classpath </li>
+       </ul>
+       <h3>Version 2.0.2</h3>
+       <ul>
+          <li>Windows users can now run .at files, interaction with the REPL is still bugged and to be fixed </li>
        </ul>
     ]]>
   </change-notes>
