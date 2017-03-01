@@ -42,6 +42,7 @@ public class RunSnippetOn extends AnAction {
             @Override
             public void run() {
                 try {
+                    System.out.println("Process dead ? " + p.isProcessTerminated());
                     p.getProcessInput().write((highlighted + "\n").getBytes(StandardCharsets.UTF_8));
                     p.getProcessInput().flush();
                 } catch (IOException e) {

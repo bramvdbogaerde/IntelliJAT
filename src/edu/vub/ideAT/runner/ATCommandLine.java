@@ -82,9 +82,8 @@ public class ATCommandLine extends GeneralCommandLine {
 
     public void setATJar(){
         String home = config.getScriptATHomePath();
-        String seperator = ATConfigDefaults.getPathSeperator();
         String fullClasspath = OrderEnumerator.orderEntries(config.getScriptProject()).recursively().getPathsList().getPathsString();
-        withParameters("-classpath", fullClasspath +seperator+home+"*","edu.vub.at.IAT");
+        withParameters("-classpath", fullClasspath +File.pathSeparatorChar+home+"*","edu.vub.at.IAT");
     }
 
     public void setATArgs(){

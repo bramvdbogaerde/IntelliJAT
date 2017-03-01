@@ -1,5 +1,7 @@
 package edu.vub.ideAT.runner;
 
+import com.intellij.execution.ExecutionException;
+import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ColoredProcessHandler;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;

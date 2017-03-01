@@ -43,7 +43,7 @@
     <configurationType implementation="edu.vub.ideAT.configuration.ATRunConfigurationType"/>
     <runConfigurationProducer implementation="edu.vub.ideAT.configuration.ATRunConfigurationProducer"/>
     <programRunner implementation="edu.vub.ideAT.runner.ATRunner"/>
-    <lang.syntaxHighlighterFactory  implementationClass="edu.vub.ideAT.highlighting.ATHighlightingFactory"/>
+    <lang.syntaxHighlighterFactory language="AmbientTalk"  implementationClass="edu.vub.ideAT.highlighting.ATHighlightingFactory"/>
     <colorSettingsPage implementation="edu.vub.ideAT.highlighting.ATColorSettingsPage"/>
   </extensions>
 
